@@ -1,0 +1,56 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+type: array
+items:
+  type: object
+  additionalProperties: false
+  required:
+    - number
+    - nightlord
+    - day
+    - points
+    - date
+    - image
+    - excluded
+    - reason
+    - note
+  properties:
+    nightlord:
+      type: string
+      enum:
+        - Gladius
+        - Gladius-everdark
+        - Adel
+        - Adel-everdark
+        - Gnoster
+        - Gnoster-everdark
+        - Maris
+        - Maris-everdark
+        - Libra
+        - Libra-everdark
+        - Fulghor
+        - Fulghor-everdark
+        - Caligo
+        - Caligo-everdark
+        - Harmonia
+        - Harmonia-everdark
+        - Straghess
+        - Heolstor
+    day:
+      type: string
+      enum: [day0, day1, day2, day3, day3-victory]
+    points:
+      type: integer
+    date:
+      type: string
+    image:
+      type: string
+    excluded:
+      type: boolean
+    reason:
+      anyOf:
+        - type: "null"
+        - type: string
+    note:
+      anyOf:
+        - type: "null"
+        - type: string

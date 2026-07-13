@@ -1,0 +1,37 @@
+UI:
+  number: 序号
+  nightlord: 夜王
+  day: 进度
+  points: 分数
+  date: 日期
+  image: 截图
+  excluded: 排除
+  reason: 原因
+  note: 备注
+
+days:
+  day0: 未知日
+  day1: 初始日
+  day2: 中间日
+  day3: 最终日
+  day3-victory: 最终日
+
+nightlords:
+  Gladius: 三狼
+  Gladius-everdark: 三狼(永夜)
+  Adel: 大嘴
+  Adel-everdark: 大嘴(永夜)
+  Gnoster: 虫子
+  Gnoster-everdark: 虫子(永夜)
+  Maris: 征兆
+  Maris-everdark: 征兆(永夜)
+  Libra: 山羊
+  Libra-everdark: 山羊(永夜)
+  Fulghor: 人马
+  Fulghor-everdark: 人马(永夜)
+  Caligo: 冰龙
+  Caligo-everdark: 冰龙(永夜)
+  Harmonia: 七仙女
+  Harmonia-everdark: 七仙女(永夜)
+  Straghess: 垃圾王
+  Heolstor: 布德奇冥
