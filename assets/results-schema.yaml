@@ -4,7 +4,6 @@ items:
   type: object
   additionalProperties: false
   required:
-    - number
     - nightlord
     - day
     - points
@@ -40,10 +39,13 @@ items:
       enum: [day0, day1, day2, day3, day3-victory]
     points:
       type: integer
+      minimum: -1
     date:
       type: string
+      pattern: '^[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$'
     image:
       type: string
+      pattern: '^[^\\/:*?"<>|]+[.]jpg$'
     excluded:
       type: boolean
     reason:

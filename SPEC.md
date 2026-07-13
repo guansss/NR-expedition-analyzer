@@ -10,7 +10,7 @@ Build a script that recognizes a game's match history from a series of screensho
 
 # Tech Stack
 
-- **Script**: Python, OpenCV, Tesseract OCR, YAML
+- **Script**: Python, OpenCV, PaddleOCR, YAML
 - **Webpage**: Vanilla JavaScript, Bootstrap, ECharts
 
 # Project Structure
@@ -20,10 +20,10 @@ assets/
   expedition-nightlords/    # Nightlord icons
   days/                     # Day icons
   template.html             # HTML template for the webpage
+   results-schema.yaml       # Schema for the results.yaml file
 data/
   expeditions/              # Screenshots of expeditions
   expeditions-recognized/   # Cropped images of recognized expeditions
-  results-schema.yaml       # Schema for the results.yaml file
 scripts/
   recognize.py              # Script to recognize expeditions from screenshots
   generate_webpage.py       # Script to generate the webpage with expeditions
@@ -63,7 +63,7 @@ The webpage will display the following statistics on the top:
 
 - Total number of expeditions
 - Total number of victories (day3-victory)
-- A line chart showing the points trend over time, with the x-axis representing the expedition number and the y-axis representing the points. The expedition details will be displayed in a tooltip when hovering over the points on the chart.
+- A line chart showing the points trend over time, with the x-axis representing expedition order and the y-axis representing the points. The expedition details will be displayed in a tooltip when hovering over the points on the chart.
 - A bar chart showing the number of expeditions for each Nightlord, with the x-axis representing the Nightlord names and the y-axis representing the number of expeditions. A nightlord with name "X" and "X-everdark" will be counted as the same nightlord. A bar will be displayed in two colors, with a darker color at the bottom representing the everdark variant, and a lighter color at the top representing the non-everdark variant.
 
 If an expedition's `excluded` has value true, the expedition will not be counted in the statistics.
@@ -127,7 +127,7 @@ To recognize the expeditions, the `recognize.py` script will:
    2. If found, find the next expedition where the `points` is not `-1`.
    3. If the previous expedition's `day` is `day3-victory` but its `points` is less than the next expedition's `points`, or if the previous expedition's `day` is not `day3-victory` but its `points` is greater than the next expedition's `points`, log a warning indicating that the points are abnormal on the previous expedition.
    4. Repeat from step 2 until the end of the expedition list.
-9. Read the `results.yaml` file. For each expedition in the list, find the corresponding entry in the `results.yaml` file based on the date. If found, copy the `exclude`, `reason` and `note` fields from the entry to the dictionary. Keep track of the expeditions in the `results.yaml` file that have been matched. For any expedition in the `results.yaml` file that has not been matched, log a warning indicating that the customized information is discarded.
+9. Read the `results.yaml` file. For each expedition in the list, find the corresponding entry in the `results.yaml` file based on the date. If found, copy the `excluded`, `reason` and `note` fields from the entry to the dictionary. Keep track of the expeditions in the `results.yaml` file that have been matched. For any expedition in the `results.yaml` file that has not been matched, log a warning indicating that the customized information is discarded.
 10. After processing all expeditions, write the expeditions list to the `results.yaml` file.
 
 ## Generating the Webpage

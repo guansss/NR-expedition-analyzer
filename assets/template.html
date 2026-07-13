@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NR Expedition Analyzer</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-a: #edf8ff;
+        --bg-b: #fef8ee;
+        --card: #ffffff;
+        --ink: #1f2a37;
+        --accent: #0f766e;
+        --muted: #667085;
+        --everdark: #7c3aed;
+        --victory: #e8f8e8;
+      }
+
+      body {
+        background: radial-gradient(circle at 0% 0%, var(--bg-a), transparent 45%),
+          radial-gradient(circle at 100% 0%, var(--bg-b), transparent 35%),
+          #f8fafc;
+        color: var(--ink);
+      }
+
+      .page-wrap {
+        max-width: 1360px;
+      }
+
+      .stat-card {
+        background: var(--card);
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 16px;
+      }
+
+      .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .chart-panel,
+      .table-panel {
+        background: var(--card);
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 16px;
+      }
+
+      .chart {
+        width: 100%;
+        height: 320px;
+      }
+
+      .everdark-pill {
+        background: var(--everdark);
+        color: #fff;
+        border-radius: 6px;
+        padding: 2px 6px;
+        font-size: 0.9rem;
+      }
+
+      .victory-row {
+        background: var(--victory);
+      }
+
+      .bug-row {
+        opacity: 0.5;
+      }
+
+      .image-icon {
+        border: 0;
+        background: #e2e8f0;
+        border-radius: 10px;
+        width: 36px;
+        height: 36px;
+        font-size: 1rem;
+      }
+
+      #hover-preview {
+        position: fixed;
+        z-index: 1100;
+        display: none;
+        pointer-events: none;
+        border: 1px solid #d0d5dd;
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+        padding: 6px;
+      }
+
+      #hover-preview img {
+        max-width: min(600px, 70vw);
+        max-height: min(400px, 50vh);
+        display: block;
+      }
+
+      .table td,
+      .table th {
+        vertical-align: middle;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container-fluid page-wrap py-4">
+      <div class="d-flex justify-content-between align-items-end mb-4">
+        <div>
+          <h1 class="h3 mb-1">Expedition Report</h1>
+          <div class="muted">Generated at __GENERATED_AT__</div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="stat-card">
+            <div class="muted" id="label-total">Total</div>
+            <div class="stat-value" id="total-expeditions">0</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="stat-card">
+            <div class="muted" id="label-victories">Victories</div>
+            <div class="stat-value" id="total-victories">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-12 col-xl-6">
+          <div class="chart-panel">
+            <h2 class="h5 mb-3">Points Trend</h2>
+            <div class="chart" id="points-chart"></div>
+          </div>
+        </div>
+        <div class="col-12 col-xl-6">
+          <div class="chart-panel">
+            <h2 class="h5 mb-3">Nightlord Distribution</h2>
+            <div class="chart" id="nightlord-chart"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-panel">
+        <h2 class="h5 mb-3">Expeditions</h2>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle" id="expedition-table">
+            <thead class="table-light">
+              <tr id="expedition-header"></tr>
+            </thead>
+            <tbody id="expedition-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="hover-preview"><img src="" alt="preview" /></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script>
+      const expeditions = __EXPEDITIONS_JSON__;
+      const translations = __TRANSLATIONS_JSON__;
+      const preview = document.getElementById("hover-preview");
+      const previewImage = preview.querySelector("img");
+
+      const COLUMNS = [
+        "nightlord",
+        "day",
+        "points",
+        "date",
+        "image",
+        "excluded",
+        "reason",
+        "note",
+      ];
+
+      function t(section, key, fallback) {
+        if (translations && translations[section] && translations[section][key] !== undefined) {
+          return translations[section][key];
+        }
+        return fallback;
+      }
+
+      function displayDay(value) {
+        return t("days", value, value);
+      }
+
+      function displayNightlord(value) {
+        return t("nightlords", value, value);
+      }
+
+      function setStats(visibleRows) {
+        const total = visibleRows.length;
+        const victories = visibleRows.filter((row) => row.day === "day3-victory").length;
+
+        document.getElementById("total-expeditions").textContent = String(total);
+        document.getElementById("total-victories").textContent = String(victories);
+        document.getElementById("label-total").textContent = "总场次";
+        document.getElementById("label-victories").textContent = "胜利场次";
+      }
+
+      function renderHeader() {
+        const header = document.getElementById("expedition-header");
+        header.innerHTML = "";
+        COLUMNS.forEach((key) => {
+          const th = document.createElement("th");
+          th.textContent = t("UI", key, key);
+          header.appendChild(th);
+        });
+      }
+
+      function showPreview(src, event) {
+        previewImage.src = src;
+        preview.style.display = "block";
+        movePreview(event);
+      }
+
+      function hidePreview() {
+        preview.style.display = "none";
+        previewImage.src = "";
+      }
+
+      function movePreview(event) {
+        const offset = 18;
+        preview.style.left = `${Math.min(event.clientX + offset, window.innerWidth - 320)}px`;
+        preview.style.top = `${Math.min(event.clientY + offset, window.innerHeight - 220)}px`;
+      }
+
+      function renderTable(visibleRows) {
+        const body = document.getElementById("expedition-body");
+        body.innerHTML = "";
+
+        visibleRows.forEach((row) => {
+          const tr = document.createElement("tr");
+          if (row.day === "day3-victory") tr.classList.add("victory-row");
+          if (row.reason === "bug") tr.classList.add("bug-row");
+
+          COLUMNS.forEach((column) => {
+            const td = document.createElement("td");
+            const value = row[column];
+
+            if (column === "nightlord") {
+              const text = displayNightlord(String(value));
+              if (String(value).endsWith("-everdark")) {
+                const span = document.createElement("span");
+                span.className = "everdark-pill";
+                span.textContent = text;
+                td.appendChild(span);
+              } else {
+                td.textContent = text;
+              }
+            } else if (column === "day") {
+              td.textContent = displayDay(String(value));
+            } else if (column === "image") {
+              const button = document.createElement("button");
+              button.className = "image-icon";
+              button.type = "button";
+              button.textContent = "图";
+              const src = `data/expeditions-recognized/${value}`;
+              button.addEventListener("mouseenter", (event) => showPreview(src, event));
+              button.addEventListener("mousemove", movePreview);
+              button.addEventListener("mouseleave", hidePreview);
+              td.appendChild(button);
+            } else {
+              td.textContent = value === null || value === undefined ? "" : String(value);
+            }
+
+            tr.appendChild(td);
+          });
+
+          body.appendChild(tr);
+        });
+      }
+
+      function renderPointsChart(visibleRows) {
+        const chart = echarts.init(document.getElementById("points-chart"));
+        const xAxisData = visibleRows.map((_, idx) => String(idx + 1));
+        const pointsData = visibleRows.map((row) => (row.points === -1 ? null : row.points));
+
+        chart.setOption({
+          grid: { left: 30, right: 20, top: 20, bottom: 30, containLabel: true },
+          tooltip: {
+            trigger: "axis",
+            formatter: (items) => {
+              if (!items || !items.length) return "";
+              const index = items[0].dataIndex;
+              const row = visibleRows[index];
+              return [
+                `#${index + 1}`,
+                displayNightlord(row.nightlord),
+                displayDay(row.day),
+                `分数: ${row.points}`,
+                row.date,
+              ].join("<br>");
+            },
+          },
+          xAxis: { type: "category", data: xAxisData },
+          yAxis: { type: "value" },
+          series: [
+            {
+              type: "line",
+              smooth: true,
+              data: pointsData,
+              connectNulls: false,
+              lineStyle: { width: 3, color: "#0f766e" },
+              itemStyle: { color: "#0f766e" },
+            },
+          ],
+        });
+
+        window.addEventListener("resize", () => chart.resize());
+      }
+
+      function canonicalNightlord(value) {
+        return value.endsWith("-everdark") ? value.slice(0, -9) : value;
+      }
+
+      function renderNightlordChart(visibleRows) {
+        const grouped = new Map();
+        visibleRows.forEach((row) => {
+          const key = canonicalNightlord(String(row.nightlord));
+          if (!grouped.has(key)) grouped.set(key, { normal: 0, everdark: 0 });
+          const bucket = grouped.get(key);
+          if (String(row.nightlord).endsWith("-everdark")) {
+            bucket.everdark += 1;
+          } else {
+            bucket.normal += 1;
+          }
+        });
+
+        const names = Array.from(grouped.keys());
+        const everdarkCounts = names.map((name) => grouped.get(name).everdark);
+        const normalCounts = names.map((name) => grouped.get(name).normal);
+
+        const chart = echarts.init(document.getElementById("nightlord-chart"));
+        chart.setOption({
+          grid: { left: 30, right: 20, top: 20, bottom: 30, containLabel: true },
+          tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+          xAxis: {
+            type: "category",
+            data: names.map((name) => displayNightlord(name)),
+            axisLabel: { interval: 0, rotate: 25 },
+          },
+          yAxis: { type: "value" },
+          series: [
+            {
+              name: "Everdark",
+              type: "bar",
+              stack: "total",
+              itemStyle: { color: "#5b21b6" },
+              data: everdarkCounts,
+            },
+            {
+              name: "Normal",
+              type: "bar",
+              stack: "total",
+              itemStyle: { color: "#a78bfa" },
+              data: normalCounts,
+            },
+          ],
+        });
+
+        window.addEventListener("resize", () => chart.resize());
+      }
+
+      function boot() {
+        renderHeader();
+        const visibleRows = expeditions.filter((row) => !row.excluded);
+        setStats(visibleRows);
+        renderTable(visibleRows);
+        renderPointsChart(visibleRows);
+        renderNightlordChart(visibleRows);
+      }
+
+      boot();
+    </script>
+  </body>
+</html>
