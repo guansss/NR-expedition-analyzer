@@ -499,9 +499,17 @@ def merge_custom_fields(
         if not old_item:
             continue
         matched_dates.add(item["date"])
-        item["excluded"] = bool(old_item.get("excluded", old_item.get("exclude", False)))
-        item["reason"] = old_item.get("reason", "")
+        item["excluded"] = bool(old_item.get("excluded", False))
+        item["status"] = str(old_item.get("status", item["status"]))
         item["note"] = old_item.get("note", "")
+
+        if item["day"] == "day3-victory" and item["status"] != "victory":
+            logging.warning(
+                "Status/day mismatch at %s (%s): day is day3-victory but status is '%s'",
+                item.get("date"),
+                item.get("image"),
+                item["status"],
+            )
 
     for date in sorted(previous_by_date):
         if date not in matched_dates:
@@ -550,7 +558,6 @@ def collect_expeditions_for_screenshot(
     debug_dir: Path,
     date_cache: set[str],
 ) -> list[dict[str, Any]]:
-    logging.info("============ %s ============", screenshot_path.name)
     color_image = cv2.imread(str(screenshot_path), cv2.IMREAD_COLOR)
     if color_image is None:
         logging.warning("Failed to load screenshot: %s", screenshot_path)
@@ -680,7 +687,7 @@ def collect_expeditions_for_screenshot(
             "date": recognized_date,
             "image": image_name,
             "excluded": False,
-            "reason": "",
+            "status": "victory" if day_value == "day3-victory" else "defeat",
             "note": "",
         }
         expeditions.append(expedition)
@@ -735,7 +742,8 @@ def main() -> None:
     all_expeditions: list[dict[str, Any]] = []
     date_cache: set[str] = set()
 
-    for screenshot in screenshots:
+    for idx, screenshot in enumerate(screenshots, start=1):
+        logging.info("============ (%d/%d) %s ============", idx, len(screenshots), screenshot.name)
         all_expeditions.extend(
             collect_expeditions_for_screenshot(
                 screenshot,

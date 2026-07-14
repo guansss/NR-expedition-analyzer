@@ -10,7 +10,7 @@ items:
     - date
     - image
     - excluded
-    - reason
+    - status
     - note
   properties:
     nightlord:
@@ -48,10 +48,8 @@ items:
       pattern: '^[^\\/:*?"<>|]+[.]jpg$'
     excluded:
       type: boolean
-    reason:
-      anyOf:
-        - type: "null"
-        - type: string
+    status:
+      type: string
     note:
       anyOf:
         - type: "null"

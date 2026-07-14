@@ -6,15 +6,22 @@ UI:
   date: 日期
   image: 截图
   excluded: 排除
-  reason: 原因
+  status: 状态
   note: 备注
+
+status:
+  victory: 胜利
+  defeat: 失败
+  quit: 拔线
+  disconnected: 掉线
+  invalid: 无效
 
 days:
   day0: 未知日
   day1: 初始日
   day2: 中间日
   day3: 最终日
-  day3-victory: 胜利
+  day3-victory: 最终日
 
 nightlords:
   Gladius: 三狼

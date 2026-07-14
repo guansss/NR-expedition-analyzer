@@ -18,7 +18,7 @@
         --muted: #667085;
         --nightlord-everdark: #5427a3;
         --victory: #e8f8e8;
-        --loss: #f8e8e8;
+        --defeat: #f8e8e8;
       }
 
       body {
@@ -74,11 +74,19 @@
         background: var(--victory);
       }
 
-      .loss-row {
-        background: var(--loss);
+      .defeat-row {
+        background: var(--defeat);
       }
 
-      .bug-row {
+      .quit-row {
+        background: #fff7d6;
+      }
+
+      .disconnected-row {
+        background: #f1f5f9;
+      }
+
+      .invalid-row {
         opacity: 0.5;
       }
 
@@ -173,7 +181,7 @@
       const preview = document.getElementById("hover-preview")
       const previewImage = preview.querySelector("img")
 
-      const COLUMNS = ["date", "number", "nightlord", "day", "points", "image", "reason", "note"]
+      const COLUMNS = ["date", "number", "nightlord", "day", "points", "image", "status", "note"]
 
       function t(section, key, fallback) {
         if (translations && translations[section] && translations[section][key] !== undefined) {
@@ -190,9 +198,13 @@
         return t("nightlords", value, value)
       }
 
+      function displayStatus(value) {
+        return t("status", value, value)
+      }
+
       function setStats(visibleRows) {
         const total = visibleRows.length
-        const victories = visibleRows.filter((row) => row.day === "day3-victory").length
+        const victories = visibleRows.filter((row) => row.status === "victory").length
 
         document.getElementById("total-expeditions").textContent = String(total)
         document.getElementById("total-victories").textContent = String(victories)
@@ -234,16 +246,18 @@
       function renderTable(visibleRows) {
         const body = document.getElementById("expedition-body")
         body.innerHTML = ""
+        const statusClassMap = {
+          victory: "victory-row",
+          defeat: "defeat-row",
+          quit: "quit-row",
+          disconnected: "disconnected-row",
+          invalid: "invalid-row",
+        }
 
-        visibleRows.forEach((row) => {
+        visibleRows.forEach((row, rowIndex) => {
           const tr = document.createElement("tr")
-          if (row.reason === "bug") {
-            tr.classList.add("bug-row")
-          } else if (row.day === "day3-victory") {
-            tr.classList.add("victory-row")
-          } else {
-            tr.classList.add("loss-row")
-          }
+          const statusClass = statusClassMap[row.status]
+          if (statusClass) tr.classList.add(statusClass)
 
           COLUMNS.forEach((column) => {
             const td = document.createElement("td")
@@ -257,6 +271,8 @@
               }
             } else if (column === "day") {
               td.textContent = displayDay(String(value))
+            } else if (column === "status") {
+              td.textContent = displayStatus(String(value))
             } else if (column === "image") {
               const button = document.createElement("button")
               button.className = "image-icon btn btn-light btn-sm"
@@ -288,6 +304,13 @@
 
       function renderPointsChart(rows) {
         rows = rows.reverse()
+        const pointColorsMap = {
+          victory: "#16a34a",
+          defeat: "#dc2626",
+          quit: "#facc15",
+          disconnected: "#94a3b8",
+          _default: "#adb0b3",
+        }
         const chart = echarts.init(document.getElementById("points-chart"))
         const xAxisData = rows.map((_, idx) => String(idx + 1))
         const pointsData = rows.map((row) => {
@@ -297,12 +320,7 @@
           return {
             value: row.points,
             itemStyle: {
-              color:
-                row.day === "day3-victory"
-                  ? "#16a34a"
-                  : row.reason === "bug"
-                    ? "#adb0b3"
-                    : "#dc2626",
+              color: pointColorsMap[row.status] || pointColorsMap._default,
             },
           }
         })
@@ -319,7 +337,7 @@
               return [
                 `#${index + 1}`,
                 displayNightlord(row.nightlord),
-                displayDay(row.day),
+                `${displayStatus(row.status)}(${displayDay(row.day)})`,
                 `分数: ${row.points}`,
                 row.date,
               ].join("<br>")

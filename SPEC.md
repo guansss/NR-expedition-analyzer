@@ -76,7 +76,14 @@ If `nightlord` is everdark variant (indicated by the suffix `-everdark`), the ni
 
 If `day` has value `day3-victory`, the row will be highlighted with a light green background.
 
-If `reason` has value `bug`, the row will have a lower opacity.
+If `status`:
+
+- has value `victory`, the row will have a light green background.
+- has value `defeat`, the row will have a light red background.
+- has value `quit`, the row will have a light yellow background.
+- has value `disconnected`, the row will have a light gray background.
+- has value `invalid`, the row will have a lower opacity.
+- otherwise, do nothing.
 
 If `excluded` has value true, the row will not be displayed in the table.
 
@@ -95,15 +102,7 @@ The Date has a format of `YYYY/MM/DD` on the first line and `HH:MM:SS` on the se
 To recognize the expeditions, the `recognize.py` script will:
 
 1. Set up an image recognition pipeline.
-2. Create a list to store the recognized expeditions as dictionaries with the following fields:
-   - `nightlord` (string)
-   - `day` (string)
-   - `points` (integer)
-   - `date` (string)
-   - `image` (string)
-   - `excluded` (boolean)
-   - `reason` (string)
-   - `note` (string)
+2. Create a list to store the recognized expeditions as dictionaries with the fields matching the schema in `assets/results-schema.yaml`.
 3. Clean up the `data/expeditions-recognized/` directory.
 4. Load each screenshot from the `data/expeditions/` directory.
 5. Starting from 7.8% of the screenshot width and 21.5% of the screenshot height, recognize all 8 Nightlords using the Nightlord icons in the `assets/expedition-nightlords/` directory. If less than 8 Nightlords are recognized, log a warning and continue.
@@ -127,7 +126,7 @@ To recognize the expeditions, the `recognize.py` script will:
    2. If found, find the next expedition where the `points` is not `-1`.
    3. If the previous expedition's `day` is `day3-victory` but its `points` is not greater than the next expedition's `points`, or if the previous expedition's `day` is not `day3-victory` but its `points` is greater than the next expedition's `points`, log a warning indicating that the points are abnormal on the previous expedition.
    4. Repeat from step 2 until the end of the expedition list.
-9. Read the `results.yaml` file. For each expedition in the list, find the corresponding entry in the `results.yaml` file based on the date. If found, copy the `excluded`, `reason` and `note` fields from the entry to the dictionary. Keep track of the expeditions in the `results.yaml` file that have been matched. For any expedition in the `results.yaml` file that has not been matched, log a warning indicating that the customized information is discarded.
+9. Read the `results.yaml` file. For each expedition in the list, find the corresponding entry in the `results.yaml` file based on the date. If found, overwrite the entry's `excluded`, `status` and `note` fields to the dictionary, and if `status`'s value is not `victory` but the expedition's `day` is `day3-victory`, log a warning. Keep track of the expeditions in the `results.yaml` file that have been matched. For any expedition in the `results.yaml` file that has not been matched, log a warning indicating that the customized information is discarded.
 10. After processing all expeditions, write the expeditions list to the `results.yaml` file.
 
 ## Generating the Webpage
