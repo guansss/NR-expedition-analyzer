@@ -90,6 +90,12 @@
         opacity: 0.5;
       }
 
+      .points-diff {
+        margin-left: 4px;
+        font-size: 0.8em;
+        color: var(--muted);
+      }
+
       .image-icon {
         --bs-btn-bg: transparent;
         --bs-btn-border-color: transparent;
@@ -285,6 +291,19 @@
               td.className = "date"
               td.style.color = "var(--muted)"
               td.textContent = value === null || value === undefined ? "" : String(value)
+            } else if (column === "points") {
+              const points = document.createElement("span")
+              points.textContent = value
+              td.appendChild(points)
+
+              const nextRow = visibleRows[rowIndex + 1]
+              if (nextRow && nextRow.points !== -1) {
+                const diff = value - nextRow.points
+                const diffSpan = document.createElement("span")
+                diffSpan.textContent = ` (${diff >= 0 ? "+" : ""}${diff})`
+                diffSpan.className = "points-diff"
+                td.appendChild(diffSpan)
+              }
             } else {
               td.textContent = value === null || value === undefined ? "" : String(value)
             }
