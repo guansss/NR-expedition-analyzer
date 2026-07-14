@@ -137,18 +137,17 @@
         </div>
       </div>
 
-      <div class="row g-3 mb-4">
-        <div class="col-12 col-xl-6">
-          <div class="chart-panel">
-            <h2 class="h5 mb-3">Points Trend</h2>
-            <div class="chart" id="points-chart"></div>
-          </div>
+      <div class="row mb-4">
+        <div class="chart-panel">
+          <h2 class="h5 mb-3">Points Trend</h2>
+          <div class="chart" id="points-chart"></div>
         </div>
-        <div class="col-12 col-xl-6">
-          <div class="chart-panel">
-            <h2 class="h5 mb-3">Nightlord Distribution</h2>
-            <div class="chart" id="nightlord-chart"></div>
-          </div>
+      </div>
+
+      <div class="row mb-4">
+        <div class="chart-panel">
+          <h2 class="h5 mb-3">Nightlord Distribution</h2>
+          <div class="chart" id="nightlord-chart"></div>
         </div>
       </div>
 
@@ -174,7 +173,7 @@
       const preview = document.getElementById("hover-preview")
       const previewImage = preview.querySelector("img")
 
-      const COLUMNS = ["date", "nightlord", "day", "points", "image", "reason", "note"]
+      const COLUMNS = ["date", "number", "nightlord", "day", "points", "image", "reason", "note"]
 
       function t(section, key, fallback) {
         if (translations && translations[section] && translations[section][key] !== undefined) {
@@ -287,19 +286,36 @@
         })
       }
 
-      function renderPointsChart(visibleRows) {
+      function renderPointsChart(rows) {
+        rows = rows.reverse()
         const chart = echarts.init(document.getElementById("points-chart"))
-        const xAxisData = visibleRows.map((_, idx) => String(idx + 1))
-        const pointsData = visibleRows.map((row) => (row.points === -1 ? null : row.points))
+        const xAxisData = rows.map((_, idx) => String(idx + 1))
+        const pointsData = rows.map((row) => {
+          if (row.points === -1) {
+            return null
+          }
+          return {
+            value: row.points,
+            itemStyle: {
+              color:
+                row.day === "day3-victory"
+                  ? "#16a34a"
+                  : row.reason === "bug"
+                    ? "#adb0b3"
+                    : "#dc2626",
+            },
+          }
+        })
 
         chart.setOption({
           grid: { left: 30, right: 20, top: 20, bottom: 30, containLabel: true },
+          dataZoom: [{ type: "inside" }],
           tooltip: {
             trigger: "axis",
             formatter: (items) => {
               if (!items || !items.length) return ""
               const index = items[0].dataIndex
-              const row = visibleRows[index]
+              const row = rows[index]
               return [
                 `#${index + 1}`,
                 displayNightlord(row.nightlord),
@@ -309,16 +325,19 @@
               ].join("<br>")
             },
           },
-          xAxis: { type: "category", data: xAxisData },
+          xAxis: {
+            type: "category",
+            data: xAxisData,
+            axisLabel: { show: false },
+          },
           yAxis: { type: "value" },
           series: [
             {
               type: "line",
-              smooth: true,
+              smooth: false,
               data: pointsData,
               connectNulls: false,
-              lineStyle: { width: 3, color: "#0f766e" },
-              itemStyle: { color: "#0f766e" },
+              lineStyle: { width: 2, color: "#6b7280" },
             },
           ],
         })
@@ -330,9 +349,9 @@
         return value.endsWith("-everdark") ? value.slice(0, -9) : value
       }
 
-      function renderNightlordChart(visibleRows) {
+      function renderNightlordChart(rows) {
         const grouped = new Map()
-        visibleRows.forEach((row) => {
+        rows.forEach((row) => {
           const key = canonicalNightlord(String(row.nightlord))
           if (!grouped.has(key)) grouped.set(key, { normal: 0, everdark: 0 })
           const bucket = grouped.get(key)
@@ -343,7 +362,13 @@
           }
         })
 
-        const names = Array.from(grouped.keys())
+        const names = Array.from(grouped.entries())
+          .sort((a, b) => {
+            const totalA = a[1].normal + a[1].everdark
+            const totalB = b[1].normal + b[1].everdark
+            return totalB - totalA
+          })
+          .map(([name]) => name)
         const everdarkCounts = names.map((name) => grouped.get(name).everdark)
         const normalCounts = names.map((name) => grouped.get(name).normal)
 
@@ -380,11 +405,16 @@
 
       function boot() {
         renderHeader()
-        const visibleRows = expeditions.filter((row) => !row.excluded)
-        setStats(visibleRows)
-        renderTable(visibleRows)
-        renderPointsChart(visibleRows)
-        renderNightlordChart(visibleRows)
+        const rows = expeditions
+          .filter((row) => !row.excluded)
+          .map((row, index, arr) => ({
+            ...row,
+            number: arr.length - index,
+          }))
+        setStats(rows)
+        renderTable(rows)
+        renderPointsChart(rows)
+        renderNightlordChart(rows)
       }
 
       boot()
