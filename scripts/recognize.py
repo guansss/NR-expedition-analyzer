@@ -18,6 +18,7 @@ NIGHTLORD_REGION_LEFT_RATIO = 0.078
 NIGHTLORD_REGION_TOP_RATIO = 0.215
 NIGHTLORD_SEARCH_WIDTH_RATIO = 0.45
 RECOGNITION_DEBUG_DIRNAME = "debug"
+POINTS_ALLOWED_CHARS = set("0123456789")
 
 OCR_ENGINE: TextRecognition | None = None
 
@@ -336,7 +337,7 @@ def parse_date_from_text(text: str) -> str | None:
     return f"{date_match.group(1)} {time_match.group(1)}"
 
 
-def run_paddle_ocr_text(image: Any) -> str:
+def run_paddle_ocr_text(image: Any) -> tuple[str, float]:
     ocr = get_ocr_engine()
     # Paddle text recognizer expects a 3-channel image.
     input_image = image
@@ -345,32 +346,113 @@ def run_paddle_ocr_text(image: Any) -> str:
 
     result = ocr.predict(input_image)
     if not result:
-        return ""
+        return "", 0.0
 
     first = result[0]
     text = str(first.get("rec_text", "")).strip() if hasattr(first, "get") else ""
-    return text
+    score = float(first.get("rec_score", 0.0)) if hasattr(first, "get") else 0.0
+    return text, score
+
+
+def normalize_ocr_digit_text(text: str) -> str:
+    # Paddle may confuse visually similar characters in numeric-only regions.
+    replacements = {
+        "O": "0",
+        "o": "0",
+        "D": "0",
+        "I": "1",
+        "l": "1",
+        "|": "1",
+        "S": "5",
+        "s": "5",
+        "B": "8",
+        "Z": "2",
+        ",": "",
+        ".": "",
+        " ": "",
+    }
+    normalized = text
+    for source, target in replacements.items():
+        normalized = normalized.replace(source, target)
+    return normalized
+
+
+def extract_numeric_candidates(text: str) -> list[str]:
+    normalized = normalize_ocr_digit_text(text)
+    candidates: list[str] = []
+    current: list[str] = []
+
+    for char in normalized:
+        if char in POINTS_ALLOWED_CHARS:
+            current.append(char)
+        else:
+            if current:
+                candidates.append("".join(current))
+                current = []
+    if current:
+        candidates.append("".join(current))
+
+    return [candidate for candidate in candidates if 1 <= len(candidate) <= 5]
+
+
+def points_candidate_score(candidate: str, confidence: float) -> float:
+    # Prefer full-length point values and then confidence.
+    length_bias = {1: -1.0, 2: -0.8, 3: 0.0, 4: 0.0}
+    score = confidence + length_bias.get(len(candidate), -1.0)
+    if not candidate.endswith("0"):
+        score -= 1.0
+    return score
 
 
 def recognize_date(date_image: Any) -> str | None:
     preprocessed = preprocess_for_ocr(date_image)
     half = max(1, preprocessed.shape[0] // 2)
-    top_text = run_paddle_ocr_text(preprocessed[:half, :])
-    bottom_text = run_paddle_ocr_text(preprocessed[half:, :])
+    top_text, _ = run_paddle_ocr_text(preprocessed[:half, :])
+    bottom_text, _ = run_paddle_ocr_text(preprocessed[half:, :])
     text = f"{top_text}\n{bottom_text}".strip()
     return parse_date_from_text(text)
 
 
 def recognize_points(points_image: Any) -> int:
-    preprocessed = preprocess_for_ocr(points_image)
-    text = run_paddle_ocr_text(preprocessed)
-    digits = re.sub(r"\D", "", text)
-    if not digits:
-        return -1, preprocessed
+    gray = points_image if len(points_image.shape) == 2 else cv2.cvtColor(points_image, cv2.COLOR_BGR2GRAY)
+
+    variants: list[Any] = []
+    base = gray
+    variants.append(base)
+    variants.append(cv2.bitwise_not(base))
+
+    candidate_scores: dict[str, float] = {}
+    best_digits = ""
+    best_confidence = -1.0
+    best_variant = base
+
+    for variant in variants:
+        text, confidence = run_paddle_ocr_text(variant)
+        candidates = extract_numeric_candidates(text)
+        if not candidates:
+            logging.info("OCR variant: '%s' -> no numeric candidate (confidence %.2f)", text, confidence)
+            continue
+
+        for candidate in candidates:
+            candidate_scores[candidate] = candidate_scores.get(candidate, 0.0) + points_candidate_score(candidate, confidence)
+
+        top_candidate = max(candidates, key=lambda value: points_candidate_score(value, confidence))
+        logging.info("OCR variant: '%s' -> '%s' (confidence %.2f)", text, top_candidate, confidence)
+        if points_candidate_score(top_candidate, confidence) > points_candidate_score(best_digits, best_confidence):
+            best_digits = top_candidate
+            best_confidence = confidence
+            best_variant = variant
+
+    if candidate_scores:
+        best_digits = max(candidate_scores.keys(), key=lambda value: candidate_scores[value])
+
+    if not best_digits:
+        return -1, best_variant
+
     try:
-        return int(digits), preprocessed
+        return int(best_digits), best_variant
     except ValueError:
-        return -1, preprocessed
+        return -1, best_variant
 
 
 def parse_datetime(value: str) -> dt.datetime:
@@ -470,6 +552,7 @@ def collect_expeditions_for_screenshot(
     debug_dir: Path,
     date_cache: set[str],
 ) -> list[dict[str, Any]]:
+    logging.info("============ %s ============", screenshot_path.name)
     color_image = cv2.imread(str(screenshot_path), cv2.IMREAD_COLOR)
     if color_image is None:
         logging.warning("Failed to load screenshot: %s", screenshot_path)
@@ -489,7 +572,7 @@ def collect_expeditions_for_screenshot(
         search_top,
         search_right,
     )
-    logging.info("Using nightlord threshold %.2f (%s expected rows) for %s", threshold, expected_rows, screenshot_path.name)
+    logging.info("Using nightlord threshold %.2f (%s expected rows)", threshold, expected_rows)
 
     nightlord_matches = find_nightlords_in_sequence(
         color_image,
