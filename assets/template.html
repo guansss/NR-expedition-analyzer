@@ -16,14 +16,15 @@
         --ink: #1f2a37;
         --accent: #0f766e;
         --muted: #667085;
-        --everdark: #7c3aed;
+        --nightlord-everdark: #5427a3;
         --victory: #e8f8e8;
+        --loss: #f8e8e8;
       }
 
       body {
-        background: radial-gradient(circle at 0% 0%, var(--bg-a), transparent 45%),
-          radial-gradient(circle at 100% 0%, var(--bg-b), transparent 35%),
-          #f8fafc;
+        background:
+          radial-gradient(circle at 0% 0%, var(--bg-a), transparent 45%),
+          radial-gradient(circle at 100% 0%, var(--bg-b), transparent 35%), #f8fafc;
         color: var(--ink);
       }
 
@@ -60,16 +61,21 @@
         height: 320px;
       }
 
-      .everdark-pill {
-        background: var(--everdark);
-        color: #fff;
-        border-radius: 6px;
-        padding: 2px 6px;
-        font-size: 0.9rem;
+      .date {
+        color: var(--muted);
+        font-size: 0.8em;
+      }
+
+      .nightlord {
+        font-weight: 600;
       }
 
       .victory-row {
         background: var(--victory);
+      }
+
+      .loss-row {
+        background: var(--loss);
       }
 
       .bug-row {
@@ -77,30 +83,28 @@
       }
 
       .image-icon {
-        border: 0;
-        background: #e2e8f0;
-        border-radius: 10px;
-        width: 36px;
-        height: 36px;
-        font-size: 1rem;
+        --bs-btn-bg: transparent;
+        --bs-btn-border-color: transparent;
       }
 
       #hover-preview {
         position: fixed;
         z-index: 1100;
         display: none;
-        pointer-events: none;
         border: 1px solid #d0d5dd;
         background: #fff;
-        border-radius: 10px;
+        border-radius: 4px;
         box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
         padding: 6px;
       }
 
       #hover-preview img {
-        max-width: min(600px, 70vw);
-        max-height: min(400px, 50vh);
         display: block;
+      }
+
+      .table {
+        --bs-table-bg: transparent;
+        font-size: 0.9rem;
       }
 
       .table td,
@@ -165,140 +169,144 @@
 
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
     <script>
-      const expeditions = __EXPEDITIONS_JSON__;
-      const translations = __TRANSLATIONS_JSON__;
-      const preview = document.getElementById("hover-preview");
-      const previewImage = preview.querySelector("img");
+      const expeditions = __EXPEDITIONS_JSON__
+      const translations = __TRANSLATIONS_JSON__
+      const preview = document.getElementById("hover-preview")
+      const previewImage = preview.querySelector("img")
 
-      const COLUMNS = [
-        "nightlord",
-        "day",
-        "points",
-        "date",
-        "image",
-        "excluded",
-        "reason",
-        "note",
-      ];
+      const COLUMNS = ["date", "nightlord", "day", "points", "image", "reason", "note"]
 
       function t(section, key, fallback) {
         if (translations && translations[section] && translations[section][key] !== undefined) {
-          return translations[section][key];
+          return translations[section][key]
         }
-        return fallback;
+        return fallback
       }
 
       function displayDay(value) {
-        return t("days", value, value);
+        return t("days", value, value)
       }
 
       function displayNightlord(value) {
-        return t("nightlords", value, value);
+        return t("nightlords", value, value)
       }
 
       function setStats(visibleRows) {
-        const total = visibleRows.length;
-        const victories = visibleRows.filter((row) => row.day === "day3-victory").length;
+        const total = visibleRows.length
+        const victories = visibleRows.filter((row) => row.day === "day3-victory").length
 
-        document.getElementById("total-expeditions").textContent = String(total);
-        document.getElementById("total-victories").textContent = String(victories);
-        document.getElementById("label-total").textContent = "总场次";
-        document.getElementById("label-victories").textContent = "胜利场次";
+        document.getElementById("total-expeditions").textContent = String(total)
+        document.getElementById("total-victories").textContent = String(victories)
+        document.getElementById("label-total").textContent = "总场次"
+        document.getElementById("label-victories").textContent = "胜利场次"
       }
 
       function renderHeader() {
-        const header = document.getElementById("expedition-header");
-        header.innerHTML = "";
+        const header = document.getElementById("expedition-header")
+        header.innerHTML = ""
         COLUMNS.forEach((key) => {
-          const th = document.createElement("th");
-          th.textContent = t("UI", key, key);
-          header.appendChild(th);
-        });
+          const th = document.createElement("th")
+          th.textContent = t("UI", key, key)
+          header.appendChild(th)
+        })
       }
 
       function showPreview(src, event) {
-        previewImage.src = src;
-        preview.style.display = "block";
-        movePreview(event);
+        const button = event.target
+        const row = button.closest("tr")
+        previewImage.onload = () => {
+          const buttonRect = button.getBoundingClientRect()
+          const rowRect = row.getBoundingClientRect()
+          previewImage.style.maxWidth = `${rowRect.width}px`
+          preview.style.left = `${rowRect.left}px`
+          preview.style.top = `${(rowRect.height - previewImage.naturalHeight) / 2 + rowRect.top}px`
+        }
+        previewImage.src = src
+        preview.style.display = "block"
       }
 
       function hidePreview() {
-        preview.style.display = "none";
-        previewImage.src = "";
-      }
-
-      function movePreview(event) {
-        const offset = 18;
-        preview.style.left = `${Math.min(event.clientX + offset, window.innerWidth - 320)}px`;
-        preview.style.top = `${Math.min(event.clientY + offset, window.innerHeight - 220)}px`;
+        if (preview.style.display !== "none") {
+          preview.style.display = "none"
+          previewImage.src = ""
+        }
       }
 
       function renderTable(visibleRows) {
-        const body = document.getElementById("expedition-body");
-        body.innerHTML = "";
+        const body = document.getElementById("expedition-body")
+        body.innerHTML = ""
 
         visibleRows.forEach((row) => {
-          const tr = document.createElement("tr");
-          if (row.day === "day3-victory") tr.classList.add("victory-row");
-          if (row.reason === "bug") tr.classList.add("bug-row");
+          const tr = document.createElement("tr")
+          if (row.reason === "bug") {
+            tr.classList.add("bug-row")
+          } else if (row.day === "day3-victory") {
+            tr.classList.add("victory-row")
+          } else {
+            tr.classList.add("loss-row")
+          }
 
           COLUMNS.forEach((column) => {
-            const td = document.createElement("td");
-            const value = row[column];
+            const td = document.createElement("td")
+            const value = row[column]
 
             if (column === "nightlord") {
-              const text = displayNightlord(String(value));
+              td.textContent = displayNightlord(String(value))
+              td.className = "nightlord"
               if (String(value).endsWith("-everdark")) {
-                const span = document.createElement("span");
-                span.className = "everdark-pill";
-                span.textContent = text;
-                td.appendChild(span);
-              } else {
-                td.textContent = text;
+                td.style.color = "var(--nightlord-everdark)"
               }
             } else if (column === "day") {
-              td.textContent = displayDay(String(value));
+              td.textContent = displayDay(String(value))
             } else if (column === "image") {
-              const button = document.createElement("button");
-              button.className = "image-icon";
-              button.type = "button";
-              button.textContent = "图";
-              const src = `data/expeditions-recognized/${value}`;
-              button.addEventListener("mouseenter", (event) => showPreview(src, event));
-              button.addEventListener("mousemove", movePreview);
-              button.addEventListener("mouseleave", hidePreview);
-              td.appendChild(button);
+              const button = document.createElement("button")
+              button.className = "image-icon btn btn-light btn-sm"
+              button.type = "button"
+              button.textContent = "📷"
+              const src = `data/expeditions-recognized/${value}`
+              button.addEventListener("click", (event) => showPreview(src, event))
+              td.appendChild(button)
+            } else if (column === "date") {
+              td.className = "date"
+              td.style.color = "var(--muted)"
+              td.textContent = value === null || value === undefined ? "" : String(value)
             } else {
-              td.textContent = value === null || value === undefined ? "" : String(value);
+              td.textContent = value === null || value === undefined ? "" : String(value)
             }
 
-            tr.appendChild(td);
-          });
+            tr.appendChild(td)
+          })
 
-          body.appendChild(tr);
-        });
+          body.appendChild(tr)
+        })
+
+        document.addEventListener("click", (event) => {
+          if (!(event.target && event.target.className.includes("image-icon"))) {
+            hidePreview()
+          }
+        })
       }
 
       function renderPointsChart(visibleRows) {
-        const chart = echarts.init(document.getElementById("points-chart"));
-        const xAxisData = visibleRows.map((_, idx) => String(idx + 1));
-        const pointsData = visibleRows.map((row) => (row.points === -1 ? null : row.points));
+        const chart = echarts.init(document.getElementById("points-chart"))
+        const xAxisData = visibleRows.map((_, idx) => String(idx + 1))
+        const pointsData = visibleRows.map((row) => (row.points === -1 ? null : row.points))
 
         chart.setOption({
           grid: { left: 30, right: 20, top: 20, bottom: 30, containLabel: true },
           tooltip: {
             trigger: "axis",
             formatter: (items) => {
-              if (!items || !items.length) return "";
-              const index = items[0].dataIndex;
-              const row = visibleRows[index];
+              if (!items || !items.length) return ""
+              const index = items[0].dataIndex
+              const row = visibleRows[index]
               return [
                 `#${index + 1}`,
                 displayNightlord(row.nightlord),
                 displayDay(row.day),
                 `分数: ${row.points}`,
                 row.date,
-              ].join("<br>");
+              ].join("<br>")
             },
           },
           xAxis: { type: "category", data: xAxisData },
@@ -313,33 +321,33 @@
               itemStyle: { color: "#0f766e" },
             },
           ],
-        });
+        })
 
-        window.addEventListener("resize", () => chart.resize());
+        window.addEventListener("resize", () => chart.resize())
       }
 
       function canonicalNightlord(value) {
-        return value.endsWith("-everdark") ? value.slice(0, -9) : value;
+        return value.endsWith("-everdark") ? value.slice(0, -9) : value
       }
 
       function renderNightlordChart(visibleRows) {
-        const grouped = new Map();
+        const grouped = new Map()
         visibleRows.forEach((row) => {
-          const key = canonicalNightlord(String(row.nightlord));
-          if (!grouped.has(key)) grouped.set(key, { normal: 0, everdark: 0 });
-          const bucket = grouped.get(key);
+          const key = canonicalNightlord(String(row.nightlord))
+          if (!grouped.has(key)) grouped.set(key, { normal: 0, everdark: 0 })
+          const bucket = grouped.get(key)
           if (String(row.nightlord).endsWith("-everdark")) {
-            bucket.everdark += 1;
+            bucket.everdark += 1
           } else {
-            bucket.normal += 1;
+            bucket.normal += 1
           }
-        });
+        })
 
-        const names = Array.from(grouped.keys());
-        const everdarkCounts = names.map((name) => grouped.get(name).everdark);
-        const normalCounts = names.map((name) => grouped.get(name).normal);
+        const names = Array.from(grouped.keys())
+        const everdarkCounts = names.map((name) => grouped.get(name).everdark)
+        const normalCounts = names.map((name) => grouped.get(name).normal)
 
-        const chart = echarts.init(document.getElementById("nightlord-chart"));
+        const chart = echarts.init(document.getElementById("nightlord-chart"))
         chart.setOption({
           grid: { left: 30, right: 20, top: 20, bottom: 30, containLabel: true },
           tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
@@ -365,21 +373,21 @@
               data: normalCounts,
             },
           ],
-        });
+        })
 
-        window.addEventListener("resize", () => chart.resize());
+        window.addEventListener("resize", () => chart.resize())
       }
 
       function boot() {
-        renderHeader();
-        const visibleRows = expeditions.filter((row) => !row.excluded);
-        setStats(visibleRows);
-        renderTable(visibleRows);
-        renderPointsChart(visibleRows);
-        renderNightlordChart(visibleRows);
+        renderHeader()
+        const visibleRows = expeditions.filter((row) => !row.excluded)
+        setStats(visibleRows)
+        renderTable(visibleRows)
+        renderPointsChart(visibleRows)
+        renderNightlordChart(visibleRows)
       }
 
-      boot();
+      boot()
     </script>
   </body>
 </html>

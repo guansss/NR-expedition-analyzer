@@ -70,7 +70,7 @@ If an expedition's `excluded` has value true, the expedition will not be counted
 
 #### Expeditions Table
 
-Below the statistics is a table that lists all expeditions with all fields from the `results.yaml` file.
+Below the statistics is a table that lists all expeditions with all fields (except `excluded`) from the `results.yaml` file.
 
 If `nightlord` is everdark variant (indicated by the suffix `-everdark`), the nightlord name will be highlighted with a purple background.
 
