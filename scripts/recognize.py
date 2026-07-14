@@ -17,7 +17,7 @@ EXPECTED_ROWS_PER_SCREENSHOT = 8
 NIGHTLORD_REGION_LEFT_RATIO = 0.078
 NIGHTLORD_REGION_TOP_RATIO = 0.215
 NIGHTLORD_SEARCH_WIDTH_RATIO = 0.45
-NIGHTLORD_DEBUG_DIRNAME = "debug-nightlord-matches"
+RECOGNITION_DEBUG_DIRNAME = "debug"
 
 OCR_ENGINE: TextRecognition | None = None
 
@@ -178,8 +178,6 @@ def resolve_nightlord_variant(
     row_band: Any,
     match: dict[str, Any],
     templates: list[dict[str, Any]],
-    debug_dir: Path | None = None,
-    debug_prefix: str = "",
 ) -> str:
     name = str(match["name"])
     base_name = base_nightlord_name(name)
@@ -201,7 +199,6 @@ def resolve_nightlord_variant(
         variant_mask = variant_template.get("mask")
 
         local_best_score = -1.0
-        local_best_patch = None
 
         for offset_y in search_offsets:
             for offset_x in search_offsets:
@@ -224,21 +221,6 @@ def resolve_nightlord_variant(
                 score = (0.8 * color_score) + (0.2 * shape_score)
                 if score > local_best_score:
                     local_best_score = score
-                    local_best_patch = patch
-
-        if debug_dir is not None and local_best_patch is not None:
-            safe_score = f"{local_best_score:.6f}".replace(".", "_")
-            prefix = debug_prefix or "row"
-            write_debug_image(debug_dir / f"{prefix}_{variant_name}_patch_s{safe_score}.png", local_best_patch)
-            write_debug_image(
-                debug_dir / f"{prefix}_{variant_name}_template_s{safe_score}.png",
-                variant_template["image"],
-            )
-            if variant_mask is not None:
-                write_debug_image(
-                    debug_dir / f"{prefix}_{variant_name}_mask_s{safe_score}.png",
-                    variant_mask,
-                )
 
         if local_best_score > best_score:
             best_score = local_best_score
@@ -255,9 +237,6 @@ def find_nightlords_in_sequence(
     search_top: int,
     search_right: int,
     log_miss: bool,
-    debug_dir: Path | None = None,
-    debug_prefix: str = "",
-    save_debug_images: bool = False,
 ) -> list[dict[str, Any]]:
     image_h, _ = search_image.shape[:2]
     matches: list[dict[str, Any]] = []
@@ -287,25 +266,10 @@ def find_nightlords_in_sequence(
         abs_w = int(match["w"])
         abs_h = int(match["h"])
 
-        if save_debug_images and debug_dir is not None:
-            row_key = f"{debug_prefix}_row{row_idx}"
-            write_debug_image(debug_dir / f"{row_key}_band.png", row_band)
-            row_vis = row_band.copy()
-            cv2.rectangle(
-                row_vis,
-                (int(match["x"]), int(match["y"])),
-                (int(match["x"] + abs_w), int(match["y"] + abs_h)),
-                (0, 255, 0),
-                2,
-            )
-            write_debug_image(debug_dir / f"{row_key}_band_match.png", row_vis)
-
         resolved_name = resolve_nightlord_variant(
             row_band,
             match,
             templates,
-            debug_dir=debug_dir if save_debug_images else None,
-            debug_prefix=f"{debug_prefix}_row{row_idx}",
         )
 
         matches.append(
@@ -402,11 +366,11 @@ def recognize_points(points_image: Any) -> int:
     text = run_paddle_ocr_text(preprocessed)
     digits = re.sub(r"\D", "", text)
     if not digits:
-        return -1
+        return -1, preprocessed
     try:
-        return int(digits)
+        return int(digits), preprocessed
     except ValueError:
-        return -1
+        return -1, preprocessed
 
 
 def parse_datetime(value: str) -> dt.datetime:
@@ -424,10 +388,10 @@ def validate_points_order(expeditions: list[dict[str, Any]]) -> None:
         prev_points = int(previous_item["points"])
         next_points = int(next_item["points"])
 
-        if previous_item.get("day") == "day3-victory" and prev_points < next_points:
-            logging.warning("Abnormal points around %s", previous_item.get("date"))
+        if previous_item.get("day") == "day3-victory" and prev_points <= next_points:
+            logging.warning("Abnormal points around %s (%s). Expected %d > %d", previous_item.get("date"), previous_item.get("image"), prev_points, next_points)
         if previous_item.get("day") != "day3-victory" and prev_points > next_points:
-            logging.warning("Abnormal points around %s", previous_item.get("date"))
+            logging.warning("Abnormal points around %s (%s). Expected %d <= %d", previous_item.get("date"), previous_item.get("image"), prev_points, next_points)
 
 
 def load_yaml_list(path: Path) -> list[dict[str, Any]]:
@@ -535,9 +499,6 @@ def collect_expeditions_for_screenshot(
         search_top,
         search_right,
         log_miss=True,
-        debug_dir=debug_dir,
-        debug_prefix=screenshot_path.stem,
-        save_debug_images=True,
     )
     if len(nightlord_matches) < EXPECTED_ROWS_PER_SCREENSHOT:
         logging.warning(
@@ -549,12 +510,14 @@ def collect_expeditions_for_screenshot(
 
     expeditions: list[dict[str, Any]] = []
     for row_idx, nightlord_match in enumerate(nightlord_matches):
+        row_key = f"{screenshot_path.stem}_{row_idx}"
+
         nx = int(nightlord_match["x"])
         ny = int(nightlord_match["y"])
         nw = int(nightlord_match["w"])
         nh = int(nightlord_match["h"])
 
-        row_left = max(0, nx - int(image_w * 0.016))
+        row_left = max(0, nx - int(image_w * 0.027))
         row_right = min(image_w, row_left + int(image_w * 0.57))
         row_top = max(0, ny)
         row_bottom = min(image_h, ny + nh)
@@ -567,6 +530,35 @@ def collect_expeditions_for_screenshot(
         row_h, row_w = row_gray.shape
 
         date_left = int(row_w * 0.87)
+        points_left = int(row_w * 0.77)
+        points_right = min(row_w, points_left + int(row_w * 0.07))
+
+        if debug_dir is not None:
+            row_vis = row_color.copy()
+            nightlord_left = nx - row_left
+            cv2.rectangle(
+                row_vis,
+                (int(nightlord_left), 0),
+                (int(nightlord_left + nw), nh),
+                (0, 255, 0),
+                2,
+            )
+            cv2.rectangle(
+                row_vis,
+                (date_left, 0),
+                (row_w, row_h),
+                (255, 255, 255),
+                2,
+            )
+            cv2.rectangle(
+                row_vis,
+                (points_left, 0),
+                (points_right, row_h),
+                (255, 255, 255),
+                2,
+            )
+            write_debug_image(debug_dir / f"{row_key}.jpg", row_vis)
+
         date_crop = row_gray[:, date_left:row_w]
         recognized_date = recognize_date(date_crop)
         if not recognized_date:
@@ -580,14 +572,15 @@ def collect_expeditions_for_screenshot(
         day_search_left = max(0, (nx + nw) - row_left)
         day_value = detect_day(row_gray, day_templates, day_search_left)
 
-        points_left = int(row_w * 0.77)
-        points_right = min(row_w, points_left + int(row_w * 0.07))
         points_crop = row_gray[:, points_left:points_right]
-        points_value = recognize_points(points_crop)
+        points_value, points_preprocessed = recognize_points(points_crop)
+        if debug_dir is not None:
+            write_debug_image(debug_dir / f"{row_key}_{points_value}.jpg", points_preprocessed)
+
         if points_value == -1:
             logging.warning("Points OCR failed at row %s in %s", row_idx, screenshot_path.name)
 
-        image_name = f"{screenshot_path.stem}_{row_idx}.jpg"
+        image_name = f"{row_key}.jpg"
         cv2.imwrite(str(crops_dir / image_name), row_color)
 
         expedition = {
@@ -627,7 +620,7 @@ def main() -> None:
     root = repo_root()
     screenshots_dir = root / "data" / "expeditions"
     crops_dir = root / "data" / "expeditions-recognized"
-    debug_dir = crops_dir / NIGHTLORD_DEBUG_DIRNAME
+    debug_dir = crops_dir / RECOGNITION_DEBUG_DIRNAME
     nightlords_dir = root / "assets" / "expedition-nightlords"
     days_dir = root / "assets" / "days"
     schema_path = root / "assets" / "results-schema.yaml"

@@ -16,7 +16,7 @@
   note: ''
 - nightlord: Adel-everdark
   day: day3-victory
-  points: 3100
+  points: 8100
   date: 2026/06/18 21:08:21
   image: 20260622232157_1_2.jpg
   excluded: false
@@ -24,7 +24,7 @@
   note: ''
 - nightlord: Adel-everdark
   day: day3-victory
-  points: 7900
+  points: 7910
   date: 2026/06/18 20:26:05
   image: 20260622232157_1_3.jpg
   excluded: false
@@ -40,7 +40,7 @@
   note: ''
 - nightlord: Fulghor
   day: day3-victory
-  points: 7500
+  points: 750
   date: 2026/06/18 18:29:38
   image: 20260622232157_1_5.jpg
   excluded: false
@@ -48,7 +48,7 @@
   note: ''
 - nightlord: Caligo
   day: day3-victory
-  points: 7300
+  points: 730
   date: 2026/06/18 14:48:23
   image: 20260622232157_1_6.jpg
   excluded: false
@@ -80,7 +80,7 @@
   note: ''
 - nightlord: Harmonia
   day: day3-victory
-  points: 5400
+  points: 6400
   date: 2026/06/17 23:19:06
   image: 20260622232156_1_3.jpg
   excluded: false
@@ -88,7 +88,7 @@
   note: ''
 - nightlord: Caligo-everdark
   day: day3-victory
-  points: 200
+  points: 6200
   date: 2026/06/17 22:34:53
   image: 20260622232156_1_4.jpg
   excluded: false
@@ -96,7 +96,7 @@
   note: ''
 - nightlord: Straghess
   day: day1
-  points: 8000
+  points: 6000
   date: 2026/06/17 22:24:24
   image: 20260622232156_1_5.jpg
   excluded: false
@@ -104,7 +104,7 @@
   note: ''
 - nightlord: Caligo-everdark
   day: day3-victory
-  points: 5700
+  points: 670
   date: 2026/06/17 20:00:22
   image: 20260622232156_1_6.jpg
   excluded: false
@@ -120,7 +120,7 @@
   note: ''
 - nightlord: Libra
   day: day3-victory
-  points: 5300
+  points: 6300
   date: 2026/06/17 18:02:09
   image: 20260622232154_1_1.jpg
   excluded: false
@@ -128,7 +128,7 @@
   note: ''
 - nightlord: Maris-everdark
   day: day3-victory
-  points: 5100
+  points: 6100
   date: 2026/06/17 16:53:04
   image: 20260622232154_1_2.jpg
   excluded: false
@@ -136,7 +136,7 @@
   note: ''
 - nightlord: Straghess
   day: day3-victory
-  points: 5900
+  points: 5910
   date: 2026/06/17 14:55:16
   image: 20260622232154_1_3.jpg
   excluded: false
@@ -152,7 +152,7 @@
   note: ''
 - nightlord: Heolstor
   day: day3-victory
-  points: 500
+  points: 6500
   date: 2026/06/16 23:44:05
   image: 20260622232154_1_5.jpg
   excluded: false
@@ -160,7 +160,7 @@
   note: ''
 - nightlord: Caligo-everdark
   day: day3-victory
-  points: 200
+  points: 6200
   date: 2026/06/16 21:12:49
   image: 20260622232154_1_6.jpg
   excluded: false
@@ -168,7 +168,7 @@
   note: ''
 - nightlord: Straghess
   day: day1
-  points: 200
+  points: 600
   date: 2026/06/16 21:03:05
   image: 20260622232154_1_7.jpg
   excluded: false

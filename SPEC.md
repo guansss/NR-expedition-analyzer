@@ -111,7 +111,7 @@ To recognize the expeditions, the `recognize.py` script will:
    1. Define a row region as:
       - Top: Nightlord's bounding box top
       - Bottom: Nightlord's bounding box bottom
-      - Left: Nightlord's bounding box left minus 1.6% of the screenshot width
+      - Left: Nightlord's bounding box left minus 2.7% of the screenshot width
       - Right: Left plus 57% of the screenshot width
    2. Crop the row region for further processing.
    3. Starting from the left of the row region plus 87% of the row width, crop a region to the right edge of the row to recognize the date using OCR. If not recognized, log a warning and skip the current expedition.
@@ -125,7 +125,7 @@ To recognize the expeditions, the `recognize.py` script will:
 8. Validate the points:
    1. In the expedition list, find the first expedition where the `points` is not `-1`.
    2. If found, find the next expedition where the `points` is not `-1`.
-   3. If the previous expedition's `day` is `day3-victory` but its `points` is less than the next expedition's `points`, or if the previous expedition's `day` is not `day3-victory` but its `points` is greater than the next expedition's `points`, log a warning indicating that the points are abnormal on the previous expedition.
+   3. If the previous expedition's `day` is `day3-victory` but its `points` is not greater than the next expedition's `points`, or if the previous expedition's `day` is not `day3-victory` but its `points` is greater than the next expedition's `points`, log a warning indicating that the points are abnormal on the previous expedition.
    4. Repeat from step 2 until the end of the expedition list.
 9. Read the `results.yaml` file. For each expedition in the list, find the corresponding entry in the `results.yaml` file based on the date. If found, copy the `excluded`, `reason` and `note` fields from the entry to the dictionary. Keep track of the expeditions in the `results.yaml` file that have been matched. For any expedition in the `results.yaml` file that has not been matched, log a warning indicating that the customized information is discarded.
 10. After processing all expeditions, write the expeditions list to the `results.yaml` file.
