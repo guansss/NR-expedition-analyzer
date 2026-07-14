@@ -84,7 +84,7 @@ The `image` field displays an icon, and hovering over the icon will show the ful
 
 ## Recognizing Expeditions
 
-Each screenshot contains 8 rows, with each row representing an expedition in the following format:
+Each screenshot has a region that contains 8 rows, with each row representing an expedition in the following format:
 
 ```
 Nightlord (icon) | Day (icon) | Points (number) | Date (two-line text)
@@ -106,7 +106,7 @@ To recognize the expeditions, the `recognize.py` script will:
    - `note` (string)
 3. Clean up the `data/expeditions-recognized/` directory.
 4. Load each screenshot from the `data/expeditions/` directory.
-5. Recognize all 8 Nightlords using the Nightlord icons in the `assets/expedition-nightlords/` directory. If less than 8 Nightlords are recognized, log a warning and continue.
+5. Starting from 7.8% of the screenshot width and 21.5% of the screenshot height, recognize all 8 Nightlords using the Nightlord icons in the `assets/expedition-nightlords/` directory. If less than 8 Nightlords are recognized, log a warning and continue.
 6. For each Nightlord:
    1. Define a row region as:
       - Top: Nightlord's bounding box top

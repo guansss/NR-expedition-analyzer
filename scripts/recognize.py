@@ -7,12 +7,17 @@ from pathlib import Path
 from typing import Any
 
 import cv2
+import numpy as np
 from paddleocr import TextRecognition
 import yaml
 
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
 EXPECTED_ROWS_PER_SCREENSHOT = 8
+NIGHTLORD_REGION_LEFT_RATIO = 0.078
+NIGHTLORD_REGION_TOP_RATIO = 0.215
+NIGHTLORD_SEARCH_WIDTH_RATIO = 0.45
+NIGHTLORD_DEBUG_DIRNAME = "debug-nightlord-matches"
 
 OCR_ENGINE: TextRecognition | None = None
 
@@ -32,31 +37,45 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def load_templates(template_dir: Path) -> list[dict[str, Any]]:
+def load_templates(template_dir: Path, use_color: bool = False) -> list[dict[str, Any]]:
     templates: list[dict[str, Any]] = []
+    read_mode = cv2.IMREAD_UNCHANGED if use_color else cv2.IMREAD_GRAYSCALE
     for path in sorted(template_dir.iterdir()):
         if not path.is_file() or path.suffix.lower() not in IMAGE_SUFFIXES:
             continue
-        image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
-        if image is None:
+        raw_image = cv2.imread(str(path), read_mode)
+        if raw_image is None:
             logging.warning("Failed to load template: %s", path)
             continue
-        h, w = image.shape
-        templates.append({"name": path.stem, "image": image, "h": h, "w": w})
+
+        image = raw_image
+        mask = None
+        if use_color:
+            if len(raw_image.shape) == 2:
+                image = cv2.cvtColor(raw_image, cv2.COLOR_GRAY2BGR)
+            elif raw_image.shape[2] == 4:
+                image = raw_image[:, :, :3]
+                alpha = raw_image[:, :, 3]
+                mask = cv2.threshold(alpha, 0, 255, cv2.THRESH_BINARY)[1]
+
+        h, w = image.shape[:2]
+        templates.append({"name": path.stem, "image": image, "mask": mask, "h": h, "w": w})
     return templates
 
 
 def best_template_match(region: Any, templates: list[dict[str, Any]]) -> dict[str, Any] | None:
     best: dict[str, Any] | None = None
     best_score = -1.0
-    region_h, region_w = region.shape
+    region_h, region_w = region.shape[:2]
 
     for template in templates:
         tpl = template["image"]
-        th, tw = tpl.shape
+        mask = template.get("mask")
+        th, tw = tpl.shape[:2]
         if th > region_h or tw > region_w:
             continue
-        response = cv2.matchTemplate(region, tpl, cv2.TM_CCOEFF_NORMED)
+        method = cv2.TM_CCORR_NORMED if mask is not None else cv2.TM_CCOEFF_NORMED
+        response = cv2.matchTemplate(region, tpl, method, mask=mask)
         _, max_val, _, max_loc = cv2.minMaxLoc(response)
         if max_val > best_score:
             best_score = float(max_val)
@@ -72,24 +91,269 @@ def best_template_match(region: Any, templates: list[dict[str, Any]]) -> dict[st
     return best
 
 
-def choose_nightlord_threshold(gray_image: Any, templates: list[dict[str, Any]]) -> float:
-    h, w = gray_image.shape
-    band_right = max(1, int(w * 0.45))
-    thresholds = [0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55]
+def base_nightlord_name(name: str) -> str:
+    return name[:-9] if name.endswith("-everdark") else name
+
+
+def direct_similarity_score(patch: Any, template: Any, mask: Any | None) -> float:
+    if patch.shape[:2] != template.shape[:2]:
+        return -1.0
+
+    patch_f = patch.astype("float32")
+    template_f = template.astype("float32")
+
+    if mask is not None:
+        masked = mask > 0
+        if not masked.any():
+            return -1.0
+        patch_pixels = patch_f[masked]
+        template_pixels = template_f[masked]
+    else:
+        patch_pixels = patch_f.reshape(-1, patch_f.shape[-1] if len(patch_f.shape) == 3 else 1)
+        template_pixels = template_f.reshape(-1, template_f.shape[-1] if len(template_f.shape) == 3 else 1)
+
+    diff = patch_pixels - template_pixels
+    mse = float((diff * diff).mean()) if diff.size else 1e9
+    return 1.0 / (1.0 + mse)
+
+
+def resize_with_nearest_mask(mask: Any, shape: tuple[int, int]) -> Any:
+    return cv2.resize(mask, (shape[1], shape[0]), interpolation=cv2.INTER_NEAREST)
+
+
+def color_signature(image: Any, mask: Any | None) -> tuple[float, float, float, float, float, float]:
+    if mask is not None:
+        working_mask = mask > 0
+        if not working_mask.any():
+            return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        pixels = image[working_mask]
+    else:
+        pixels = image.reshape(-1, image.shape[-1] if len(image.shape) == 3 else 1)
+
+    pixels = pixels.astype("float32")
+    if pixels.ndim == 1:
+        pixels = pixels[:, None]
+
+    mean = pixels.mean(axis=0)
+    std = pixels.std(axis=0)
+
+    if mean.shape[0] == 1:
+        mean = np.repeat(mean, 3)
+        std = np.repeat(std, 3)
+    elif mean.shape[0] == 2:
+        mean = np.pad(mean, (0, 3 - mean.shape[0]), mode="edge")
+        std = np.pad(std, (0, 3 - std.shape[0]), mode="edge")
+
+    return (
+        float(mean[0]),
+        float(mean[1]),
+        float(mean[2]),
+        float(std[0]),
+        float(std[1]),
+        float(std[2]),
+    )
+
+
+def color_signature_score(patch: Any, template: Any, mask: Any | None) -> float:
+    patch_sig = color_signature(patch, mask)
+    template_sig = color_signature(template, mask)
+
+    if patch_sig == template_sig == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0):
+        return -1.0
+
+    diff = 0.0
+    for patch_value, template_value in zip(patch_sig, template_sig):
+        diff += abs(patch_value - template_value)
+
+    # Smaller color signature differences should yield higher scores.
+    return 1.0 / (1.0 + diff)
+
+
+def write_debug_image(path: Path, image: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(path), image)
+
+
+def resolve_nightlord_variant(
+    row_band: Any,
+    match: dict[str, Any],
+    templates: list[dict[str, Any]],
+    debug_dir: Path | None = None,
+    debug_prefix: str = "",
+) -> str:
+    name = str(match["name"])
+    base_name = base_nightlord_name(name)
+    variant_names = [base_name, f"{base_name}-everdark"]
+
+    x = int(match["x"])
+    y = int(match["y"])
+    best_name = name
+    best_score = -1.0
+    search_offsets = range(-4, 5)
+
+    for variant_name in variant_names:
+        variant_template = next((t for t in templates if t["name"] == variant_name), None)
+        if not variant_template:
+            continue
+
+        h = int(variant_template["h"])
+        w = int(variant_template["w"])
+        variant_mask = variant_template.get("mask")
+
+        local_best_score = -1.0
+        local_best_patch = None
+
+        for offset_y in search_offsets:
+            for offset_x in search_offsets:
+                candidate_x = x + offset_x
+                candidate_y = y + offset_y
+                if candidate_x < 0 or candidate_y < 0:
+                    continue
+                if candidate_y + h > row_band.shape[0] or candidate_x + w > row_band.shape[1]:
+                    continue
+
+                patch = row_band[candidate_y : candidate_y + h, candidate_x : candidate_x + w]
+                patch_mask = variant_mask
+                if patch_mask is not None and patch_mask.shape[:2] != patch.shape[:2]:
+                    patch_mask = resize_with_nearest_mask(patch_mask, patch.shape[:2])
+
+                color_score = color_signature_score(patch, variant_template["image"], patch_mask)
+                shape_score = direct_similarity_score(patch, variant_template["image"], patch_mask)
+
+                # Put more weight on color than exact pixel alignment.
+                score = (0.8 * color_score) + (0.2 * shape_score)
+                if score > local_best_score:
+                    local_best_score = score
+                    local_best_patch = patch
+
+        if debug_dir is not None and local_best_patch is not None:
+            safe_score = f"{local_best_score:.6f}".replace(".", "_")
+            prefix = debug_prefix or "row"
+            write_debug_image(debug_dir / f"{prefix}_{variant_name}_patch_s{safe_score}.png", local_best_patch)
+            write_debug_image(
+                debug_dir / f"{prefix}_{variant_name}_template_s{safe_score}.png",
+                variant_template["image"],
+            )
+            if variant_mask is not None:
+                write_debug_image(
+                    debug_dir / f"{prefix}_{variant_name}_mask_s{safe_score}.png",
+                    variant_mask,
+                )
+
+        if local_best_score > best_score:
+            best_score = local_best_score
+            best_name = variant_name
+
+    return best_name
+
+
+def find_nightlords_in_sequence(
+    search_image: Any,
+    templates: list[dict[str, Any]],
+    threshold: float,
+    search_left: int,
+    search_top: int,
+    search_right: int,
+    log_miss: bool,
+    debug_dir: Path | None = None,
+    debug_prefix: str = "",
+    save_debug_images: bool = False,
+) -> list[dict[str, Any]]:
+    image_h, _ = search_image.shape[:2]
+    matches: list[dict[str, Any]] = []
+    current_top = search_top
+    max_icon_height = max(int(t["h"]) for t in templates) if templates else 20
+    estimated_height = max(20, max_icon_height)
+
+    for row_idx in range(EXPECTED_ROWS_PER_SCREENSHOT):
+        if current_top >= image_h:
+            break
+
+        band_top = current_top
+        band_bottom = min(image_h, band_top + int(estimated_height * 1.2))
+        if band_bottom <= band_top:
+            break
+
+        row_band = search_image[band_top:band_bottom, search_left:search_right]
+        match = best_template_match(row_band, templates)
+        if not match or match["score"] < threshold:
+            if log_miss:
+                logging.warning("Nightlord not recognized at row %s", row_idx)
+            current_top = min(image_h, band_top + estimated_height)
+            continue
+
+        abs_x = search_left + int(match["x"])
+        abs_y = band_top + int(match["y"])
+        abs_w = int(match["w"])
+        abs_h = int(match["h"])
+
+        if save_debug_images and debug_dir is not None:
+            row_key = f"{debug_prefix}_row{row_idx}"
+            write_debug_image(debug_dir / f"{row_key}_band.png", row_band)
+            row_vis = row_band.copy()
+            cv2.rectangle(
+                row_vis,
+                (int(match["x"]), int(match["y"])),
+                (int(match["x"] + abs_w), int(match["y"] + abs_h)),
+                (0, 255, 0),
+                2,
+            )
+            write_debug_image(debug_dir / f"{row_key}_band_match.png", row_vis)
+
+        resolved_name = resolve_nightlord_variant(
+            row_band,
+            match,
+            templates,
+            debug_dir=debug_dir if save_debug_images else None,
+            debug_prefix=f"{debug_prefix}_row{row_idx}",
+        )
+
+        matches.append(
+            {
+            "name": resolved_name,
+                "score": float(match["score"]),
+                "x": abs_x,
+                "y": abs_y,
+                "w": abs_w,
+                "h": abs_h,
+            }
+        )
+
+        # Per spec, next row recognition starts from the current row bottom.
+        current_top = min(image_h, abs_y + abs_h)
+
+    return matches
+
+
+def choose_nightlord_threshold(
+    search_image: Any,
+    templates: list[dict[str, Any]],
+    search_left: int,
+    search_top: int,
+    search_right: int,
+) -> float:
+    thresholds = [0.80, 0.75, 0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35, 0.30]
+    best_threshold = thresholds[-1]
+    best_count = -1
 
     for threshold in thresholds:
-        recognized_rows = 0
-        for row_idx in range(EXPECTED_ROWS_PER_SCREENSHOT):
-            top = int(row_idx * h / EXPECTED_ROWS_PER_SCREENSHOT)
-            bottom = int((row_idx + 1) * h / EXPECTED_ROWS_PER_SCREENSHOT)
-            row_band = gray_image[top:bottom, 0:band_right]
-            match = best_template_match(row_band, templates)
-            if match and match["score"] >= threshold:
-                recognized_rows += 1
-        if recognized_rows >= 6:
-            return threshold
+        matches = find_nightlords_in_sequence(
+            search_image,
+            templates,
+            threshold,
+            search_left,
+            search_top,
+            search_right,
+            log_miss=False,
+        )
+        if len(matches) > best_count:
+            best_count = len(matches)
+            best_threshold = threshold
 
-    return 0.55
+        if len(matches) >= EXPECTED_ROWS_PER_SCREENSHOT:
+            return threshold, EXPECTED_ROWS_PER_SCREENSHOT
+
+    return best_threshold, best_count
 
 
 def preprocess_for_ocr(image: Any) -> Any:
@@ -239,6 +503,7 @@ def collect_expeditions_for_screenshot(
     nightlord_templates: list[dict[str, Any]],
     day_templates: list[dict[str, Any]],
     crops_dir: Path,
+    debug_dir: Path,
     date_cache: set[str],
 ) -> list[dict[str, Any]]:
     color_image = cv2.imread(str(screenshot_path), cv2.IMREAD_COLOR)
@@ -248,23 +513,44 @@ def collect_expeditions_for_screenshot(
 
     gray_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
     image_h, image_w = gray_image.shape
-    threshold = choose_nightlord_threshold(gray_image, nightlord_templates)
-    logging.info("Using nightlord threshold %.2f for %s", threshold, screenshot_path.name)
+
+    search_left = int(image_w * NIGHTLORD_REGION_LEFT_RATIO)
+    search_top = int(image_h * NIGHTLORD_REGION_TOP_RATIO)
+    search_right = min(image_w, search_left + int(image_w * NIGHTLORD_SEARCH_WIDTH_RATIO))
+
+    threshold, expected_rows = choose_nightlord_threshold(
+        color_image,
+        nightlord_templates,
+        search_left,
+        search_top,
+        search_right,
+    )
+    logging.info("Using nightlord threshold %.2f (%s expected rows) for %s", threshold, expected_rows, screenshot_path.name)
+
+    nightlord_matches = find_nightlords_in_sequence(
+        color_image,
+        nightlord_templates,
+        threshold,
+        search_left,
+        search_top,
+        search_right,
+        log_miss=True,
+        debug_dir=debug_dir,
+        debug_prefix=screenshot_path.stem,
+        save_debug_images=True,
+    )
+    if len(nightlord_matches) < EXPECTED_ROWS_PER_SCREENSHOT:
+        logging.warning(
+            "Only recognized %s/%s nightlords in %s",
+            len(nightlord_matches),
+            EXPECTED_ROWS_PER_SCREENSHOT,
+            screenshot_path.name,
+        )
 
     expeditions: list[dict[str, Any]] = []
-    band_right = max(1, int(image_w * 0.45))
-
-    for row_idx in range(EXPECTED_ROWS_PER_SCREENSHOT):
-        band_top = int(row_idx * image_h / EXPECTED_ROWS_PER_SCREENSHOT)
-        band_bottom = int((row_idx + 1) * image_h / EXPECTED_ROWS_PER_SCREENSHOT)
-        row_band = gray_image[band_top:band_bottom, 0:band_right]
-        nightlord_match = best_template_match(row_band, nightlord_templates)
-        if not nightlord_match or nightlord_match["score"] < threshold:
-            logging.warning("Nightlord not recognized at row %s in %s", row_idx, screenshot_path.name)
-            continue
-
+    for row_idx, nightlord_match in enumerate(nightlord_matches):
         nx = int(nightlord_match["x"])
-        ny = int(band_top + nightlord_match["y"])
+        ny = int(nightlord_match["y"])
         nw = int(nightlord_match["w"])
         nh = int(nightlord_match["h"])
 
@@ -341,14 +627,16 @@ def main() -> None:
     root = repo_root()
     screenshots_dir = root / "data" / "expeditions"
     crops_dir = root / "data" / "expeditions-recognized"
+    debug_dir = crops_dir / NIGHTLORD_DEBUG_DIRNAME
     nightlords_dir = root / "assets" / "expedition-nightlords"
     days_dir = root / "assets" / "days"
     schema_path = root / "assets" / "results-schema.yaml"
     results_path = root / "results.yaml"
 
     clean_directory(crops_dir)
+    clean_directory(debug_dir)
 
-    nightlord_templates = load_templates(nightlords_dir)
+    nightlord_templates = load_templates(nightlords_dir, use_color=True)
     day_templates = load_templates(days_dir)
     if not nightlord_templates:
         raise RuntimeError("No nightlord templates found.")
@@ -371,6 +659,7 @@ def main() -> None:
                 nightlord_templates,
                 day_templates,
                 crops_dir,
+                debug_dir,
                 date_cache,
             )
         )
