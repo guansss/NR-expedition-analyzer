@@ -418,7 +418,7 @@ def recognize_points(points_image: Any) -> int:
 
     variants: list[Any] = []
     base = gray
-    variants.append(base)
+    # variants.append(base)
     variants.append(cv2.bitwise_not(base))
 
     candidate_scores: dict[str, float] = {}
@@ -430,14 +430,12 @@ def recognize_points(points_image: Any) -> int:
         text, confidence = run_paddle_ocr_text(variant)
         candidates = extract_numeric_candidates(text)
         if not candidates:
-            logging.info("OCR variant: '%s' -> no numeric candidate (confidence %.2f)", text, confidence)
             continue
 
         for candidate in candidates:
             candidate_scores[candidate] = candidate_scores.get(candidate, 0.0) + points_candidate_score(candidate, confidence)
 
         top_candidate = max(candidates, key=lambda value: points_candidate_score(value, confidence))
-        logging.info("OCR variant: '%s' -> '%s' (confidence %.2f)", text, top_candidate, confidence)
         if points_candidate_score(top_candidate, confidence) > points_candidate_score(best_digits, best_confidence):
             best_digits = top_candidate
             best_confidence = confidence
@@ -615,6 +613,8 @@ def collect_expeditions_for_screenshot(
         date_left = int(row_w * 0.87)
         points_left = int(row_w * 0.77)
         points_right = min(row_w, points_left + int(row_w * 0.07))
+        points_top = int(row_h * 0.45)
+        points_bottom = int(row_h * (1.0 -0.18))
 
         if debug_dir is not None:
             row_vis = row_color.copy()
@@ -628,15 +628,22 @@ def collect_expeditions_for_screenshot(
             )
             cv2.rectangle(
                 row_vis,
-                (date_left, 0),
-                (row_w, row_h),
+                (points_left, points_top),
+                (points_right, points_bottom),
                 (255, 255, 255),
                 2,
             )
             cv2.rectangle(
                 row_vis,
-                (points_left, 0),
-                (points_right, row_h),
+                (date_left, 0),
+                (row_w, row_h),
+                (255, 255, 255),
+                2,
+            )
+            cv2.line(
+                row_vis,
+                (date_left, int(row_h * 0.5)),
+                (row_w, int(row_h * 0.5)),
                 (255, 255, 255),
                 2,
             )
@@ -655,10 +662,10 @@ def collect_expeditions_for_screenshot(
         day_search_left = max(0, (nx + nw) - row_left)
         day_value = detect_day(row_gray, day_templates, day_search_left)
 
-        points_crop = row_gray[:, points_left:points_right]
+        points_crop = row_gray[points_top:points_bottom, points_left:points_right]
         points_value, points_preprocessed = recognize_points(points_crop)
-        if debug_dir is not None:
-            write_debug_image(debug_dir / f"{row_key}_{points_value}.jpg", points_preprocessed)
+        # if debug_dir is not None:
+        #     write_debug_image(debug_dir / f"{row_key}_{points_value}.jpg", points_preprocessed)
 
         if points_value == -1:
             logging.warning("Points OCR failed at row %s in %s", row_idx, screenshot_path.name)
