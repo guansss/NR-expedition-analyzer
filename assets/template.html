@@ -165,6 +165,13 @@
         </div>
       </div>
 
+      <div class="row mb-4">
+        <div class="chart-panel">
+          <h2 class="h5 mb-3">Status Distribution</h2>
+          <div class="chart" id="status-chart"></div>
+        </div>
+      </div>
+
       <div class="table-panel">
         <h2 class="h5 mb-3">Expeditions</h2>
         <div class="table-responsive">
@@ -483,6 +490,60 @@
         window.addEventListener("resize", () => chart.resize())
       }
 
+      function renderStatusChart(rows) {
+        const statusColors = {
+          victory: "#16a34a",
+          defeat: "#dc2626",
+          quit: "#facc15",
+          disconnected: "#94a3b8",
+          invalid: "#64748b",
+        }
+        const grouped = new Map()
+        rows.forEach((row) => {
+          const key = String(row.status || "")
+          grouped.set(key, (grouped.get(key) || 0) + 1)
+        })
+
+        const data = Array.from(grouped.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([status, count]) => ({
+            name: displayStatus(status),
+            value: count,
+            itemStyle: { color: statusColors[status] || "#cbd5e1" },
+          }))
+
+        const chart = echarts.init(document.getElementById("status-chart"))
+        chart.setOption({
+          tooltip: {
+            trigger: "item",
+            formatter: ({ name, value, percent }) => `${name}<br>${value} (${percent}%)`,
+          },
+          legend: {
+            bottom: 0,
+            left: "center",
+          },
+          series: [
+            {
+              name: "Status",
+              type: "pie",
+              radius: ["42%", "72%"],
+              center: ["50%", "45%"],
+              avoidLabelOverlap: true,
+              itemStyle: {
+                borderColor: "#ffffff",
+                borderWidth: 2,
+              },
+              label: {
+                formatter: "{b}: {c}",
+              },
+              data,
+            },
+          ],
+        })
+
+        window.addEventListener("resize", () => chart.resize())
+      }
+
       function boot() {
         renderHeader()
         const rows = expeditions
@@ -495,6 +556,7 @@
         renderTable(rows)
         renderPointsChart(rows)
         renderNightlordChart(rows)
+        renderStatusChart(rows)
       }
 
       boot()

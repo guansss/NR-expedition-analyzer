@@ -65,6 +65,7 @@ The webpage will display the following statistics on the top:
 - Total number of victories (day3-victory)
 - A line chart showing the points trend over time, with the x-axis representing expedition order and the y-axis representing the points. The expedition details will be displayed in a tooltip when hovering over the points on the chart.
 - A bar chart showing the number of expeditions for each Nightlord, with the x-axis representing the Nightlord names and the y-axis representing the number of expeditions. A nightlord with name "X" and "X-everdark" will be counted as the same nightlord. A bar will be displayed in two colors, with a darker color at the bottom representing the everdark variant, and a lighter color at the top representing the non-everdark variant.
+- A pie chart showing the number of expeditions with each status.
 
 If an expedition's `excluded` has value true, the expedition will not be counted in the statistics.
 
