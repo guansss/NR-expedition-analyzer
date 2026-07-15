@@ -322,7 +322,7 @@
       }
 
       function renderPointsChart(rows) {
-        rows = rows.reverse()
+        rows = rows.slice().reverse()
         const pointColorsMap = {
           victory: "#16a34a",
           defeat: "#dc2626",
@@ -341,6 +341,44 @@
             itemStyle: {
               color: pointColorsMap[row.status] || pointColorsMap._default,
             },
+          }
+        })
+        const depthRanks = [
+          { name: "D1", cap: 1000, color: "#f7f5fb" },
+          { name: "D2", cap: 2000, color: "#f0ebf8" },
+          { name: "D3", cap: 4000, color: "#e8e2f4" },
+          { name: "D4", cap: 6000, color: "#e1d8f1" },
+          { name: "D5", cap: 9999, color: "#d9ceed" },
+        ]
+        // fake series to visualize layers of depth ranks
+        const depthRankSeries = depthRanks.map((rank) => {
+          let prevPoints = 0
+          const data = rows.map((row) => {
+            const points = row.points === -1 ? prevPoints : Math.min(row.points, rank.cap)
+            prevPoints = points
+            return { value: points }
+          })
+          return {
+            type: "line",
+            stack: "rank",
+            stackStrategy: "all",
+            showSymbol: false,
+            silent: true,
+            emphasis: { disabled: true },
+            name: rank.name,
+            data,
+            itemStyle: { opacity: 0 },
+            lineStyle: { width: 0 },
+            areaStyle: { color: rank.color },
+          }
+        })
+        // correct rank points according to the "stack" feature
+        depthRankSeries.forEach((series, index) => {
+          for (let rankIndex = index - 1; rankIndex >= 0; rankIndex--) {
+            series.data.forEach((item, itemIndex) => {
+              const prevItem = depthRankSeries[rankIndex].data[itemIndex]
+              item.value -= prevItem.value
+            })
           }
         })
 
@@ -367,7 +405,11 @@
             data: xAxisData,
             axisLabel: { show: false },
           },
-          yAxis: { type: "value" },
+          yAxis: {
+            type: "value",
+            min: 0,
+            max: 9999,
+          },
           series: [
             {
               type: "line",
@@ -376,6 +418,7 @@
               connectNulls: false,
               lineStyle: { width: 2, color: "#6b7280" },
             },
+            ...depthRankSeries,
           ],
         })
 
