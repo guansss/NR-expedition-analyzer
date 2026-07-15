@@ -20,7 +20,19 @@ def repo_root() -> Path:
 def read_yaml(path: Path) -> Any:
     if not path.exists():
         return []
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+    content = path.read_text(encoding="utf-8")
+    metadata = {}
+    for line in content.splitlines():
+        if line.startswith("#"):
+            key_value = line[1:].strip().split(":", 1)
+            if len(key_value) == 2:
+                key, value = key_value
+                metadata[key.strip()] = value.strip()
+            else:
+                metadata[key_value[0].strip()] = ""
+        else:
+            break
+    return yaml.safe_load(content), metadata
 
 
 def main() -> None:
@@ -33,10 +45,14 @@ def main() -> None:
     if not template_path.exists():
         raise FileNotFoundError(f"Template file not found: {template_path}")
 
-    expeditions = read_yaml(results_path)
-    translations = read_yaml(translations_path)
+    expeditions, expeditions_metadata = read_yaml(results_path)
+    translations, _ = read_yaml(translations_path)
     expeditions = expeditions if isinstance(expeditions, list) else []
     translations = translations if isinstance(translations, dict) else {}
+
+    if "hide_date" in expeditions_metadata:
+        for expedition in expeditions:
+            expedition.pop("date", None)
 
     template = template_path.read_text(encoding="utf-8")
     html = (

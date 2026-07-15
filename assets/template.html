@@ -194,7 +194,11 @@
       const preview = document.getElementById("hover-preview")
       const previewImage = preview.querySelector("img")
 
-      const COLUMNS = ["date", "number", "nightlord", "day", "points", "image", "status", "note"]
+      const HIDE_DATE = expeditions.some((row) => row.date === undefined || row.date === null)
+      const COLUMNS = ["number", "nightlord", "day", "points", "image", "status", "note"]
+      if (!HIDE_DATE) {
+        COLUMNS.unshift("date")
+      }
 
       function t(section, key, fallback) {
         if (translations && translations[section] && translations[section][key] !== undefined) {
@@ -400,11 +404,13 @@
               const row = rows[index]
               return [
                 `#${index + 1}`,
-                displayNightlord(row.nightlord),
+                displayNightlord(row.nightlord) || '?',
                 `${displayStatus(row.status)}(${displayDay(row.day)})`,
                 `分数: ${row.points}`,
                 row.date,
-              ].join("<br>")
+              ]
+                .filter(Boolean)
+                .join("<br>")
             },
           },
           xAxis: {

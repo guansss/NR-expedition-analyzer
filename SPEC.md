@@ -130,6 +130,12 @@ To recognize the expeditions, the `recognize.py` script will:
 9. Read the `results.yaml` file. For each expedition in the list, find the corresponding entry in the `results.yaml` file based on the date. If found, overwrite the entry's `excluded`, `status` and `note` fields to the dictionary, and if `status`'s value is not `victory` but the expedition's `day` is `day3-victory`, log a warning. Keep track of the expeditions in the `results.yaml` file that have been matched. For any expedition in the `results.yaml` file that has not been matched, log a warning indicating that the customized information is discarded.
 10. After processing all expeditions, write the expeditions list to the `results.yaml` file.
 
+#### Options
+
+`scripts/recognize.py` supports the following command line options:
+
+- `--hide-date`: If provided, the date area of the expedition's row image will be cropped out, and the `date` field will be removed when generating the webpage afterwards.
+
 ## Generating the Webpage
 
 The `generate_webpage.py` script will:

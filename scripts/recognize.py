@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import datetime as dt
 import logging
 import re
@@ -10,6 +11,7 @@ import cv2
 import numpy as np
 from paddleocr import TextRecognition
 import yaml
+from jsonschema import validate
 
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
@@ -20,11 +22,23 @@ NIGHTLORD_SEARCH_WIDTH_RATIO = 0.45
 RECOGNITION_DEBUG_DIRNAME = "debug"
 POINTS_ALLOWED_CHARS = set("0123456789")
 
+hide_date = False
+
 OCR_ENGINE: TextRecognition | None = None
 
 
 def configure_logging() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Recognize expeditions from screenshots.")
+    parser.add_argument(
+        "--hide-date",
+        action="store_true",
+        help="Hide expedition's date in saved images and generate webpage.",
+    )
+    return parser.parse_args()
 
 
 def get_ocr_engine() -> TextRecognition:
@@ -516,19 +530,10 @@ def merge_custom_fields(
             logging.warning("Custom data discarded for unmatched expedition date: %s", date)
 
 
-def validate_against_schema(records: list[dict[str, Any]], schema_path: Path) -> None:
+def load_schema(schema_path: Path) -> None:
     if not schema_path.exists():
         raise FileNotFoundError(f"Schema file not found: {schema_path}")
-
-    try:
-        from jsonschema import validate
-    except ImportError as exc:
-        raise RuntimeError(
-            "Missing dependency 'jsonschema'. Install it before running recognize.py."
-        ) from exc
-
-    schema = yaml.safe_load(schema_path.read_text(encoding="utf-8"))
-    validate(instance=records, schema=schema)
+    return yaml.safe_load(schema_path.read_text(encoding="utf-8"))
 
 
 def clean_directory(directory: Path) -> None:
@@ -678,7 +683,8 @@ def collect_expeditions_for_screenshot(
             logging.warning("Points OCR failed at row %s in %s", row_idx, screenshot_path.name)
 
         image_name = f"{row_key}.jpg"
-        cv2.imwrite(str(crops_dir / image_name), row_color)
+        row_save = row_color[:, :date_left] if hide_date else row_color
+        cv2.imwrite(str(crops_dir / image_name), row_save)
 
         expedition = {
             "nightlord": str(nightlord_match["name"]),
@@ -705,13 +711,18 @@ def collect_expeditions_for_screenshot(
 
 
 def save_results(path: Path, expeditions: list[dict[str, Any]]) -> None:
-    path.write_text(
-        yaml.safe_dump(expeditions, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
-    )
+    content = yaml.safe_dump(expeditions, allow_unicode=True, sort_keys=False)
+    if hide_date:
+        content = "# hide_date\n" + content
+    path.write_text(content, encoding="utf-8")
 
 
 def main() -> None:
+    global hide_date
+
+    args = parse_args()
+    hide_date = bool(args.hide_date)
+
     configure_logging()
 
     root = repo_root()
@@ -759,9 +770,15 @@ def main() -> None:
     validate_points_order(all_expeditions)
 
     previous_results = load_yaml_list(results_path)
-    merge_custom_fields(all_expeditions, previous_results)
+    schema = load_schema(schema_path)
 
-    validate_against_schema(all_expeditions, schema_path)
+    logging.info("Validating previous results.yaml against schema")
+    validate(instance=previous_results, schema=schema)
+    logging.info("Merging custom fields from previous results.yaml")
+    merge_custom_fields(all_expeditions, previous_results)
+    logging.info("Validating final results against schema")
+    validate(instance=all_expeditions, schema=schema)
+
     save_results(results_path, all_expeditions)
 
     logging.info("Recognition complete. Total expeditions: %s", len(all_expeditions))
