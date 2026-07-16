@@ -479,7 +479,7 @@ def parse_datetime(value: str) -> dt.datetime:
         return dt.datetime.min
 
 
-def validate_points_order(expeditions: list[dict[str, Any]]) -> None:
+def validate_points(expeditions: list[dict[str, Any]]) -> None:
     valid_indexes = [idx for idx, item in enumerate(expeditions) if item.get("points", -1) != -1]
     for current, nxt in zip(valid_indexes, valid_indexes[1:]):
         previous_item = expeditions[current]
@@ -488,9 +488,13 @@ def validate_points_order(expeditions: list[dict[str, Any]]) -> None:
         next_points = int(next_item["points"])
 
         if previous_item.get("day") == "day3-victory" and prev_points <= next_points:
-            logging.warning("Abnormal points around %s (%s). Expected %d > %d", previous_item.get("date"), previous_item.get("image"), prev_points, next_points)
+            logging.warning("Abnormal points around %s (%s). Expected %d > %d", previous_item["date"], previous_item["image"], prev_points, next_points)
         if previous_item.get("day") != "day3-victory" and prev_points > next_points:
-            logging.warning("Abnormal points around %s (%s). Expected %d <= %d", previous_item.get("date"), previous_item.get("image"), prev_points, next_points)
+            logging.warning("Abnormal points around %s (%s). Expected %d <= %d", previous_item["date"], previous_item["image"], prev_points, next_points)
+        if prev_points - next_points  > 350:
+            logging.warning("Abnormal points jump around %s (%s). Expected %d - %d <= 350", previous_item["date"], previous_item["image"], prev_points, next_points)
+        if prev_points - next_points  < -800:
+            logging.warning("Abnormal points drop around %s (%s). Expected %d - %d >= -800", previous_item["date"], previous_item["image"], prev_points, next_points)
 
 
 def load_yaml_list(path: Path) -> list[dict[str, Any]]:
@@ -802,7 +806,8 @@ def main() -> None:
         )
 
     all_expeditions.sort(key=lambda item: parse_datetime(item["date"]), reverse=True)
-    validate_points_order(all_expeditions)
+    logging.info("Validating points consistency across expeditions")
+    validate_points(all_expeditions)
 
     previous_results = load_yaml_list(results_path)
     schema = load_schema(schema_path)
