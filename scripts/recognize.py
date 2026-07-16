@@ -543,10 +543,10 @@ def clean_directory(directory: Path) -> None:
             path.unlink()
 
 
-def detect_day(row_gray: Any, day_templates: list[dict[str, Any]], search_left: int, threshold: float = 0.75) -> str:
+def detect_day(row_gray: Any, day_templates: list[dict[str, Any]], search_left: int, search_right: int, threshold: float = 0.75) -> str:
     row_h, row_w = row_gray.shape
     left = max(0, min(search_left, row_w - 1))
-    right = max(left + 1, int(row_w * 0.77))
+    right = max(left + 1, min(search_right, row_w))
     day_region = row_gray[:, left:right]
     match = best_template_match(day_region, day_templates)
     if match and match["score"] >= threshold:
@@ -622,11 +622,13 @@ def collect_expeditions_for_screenshot(
         row_gray = gray_image[row_top:row_bottom, row_left:row_right]
         row_h, row_w = row_gray.shape
 
-        date_left = int(row_w * 0.87)
+        day_search_left = max(0, (nx + nw) - row_left + int(row_w * 0.03))
+        day_search_right = min(row_w, day_search_left + int(row_w * 0.25))
         points_left = int(row_w * 0.77)
         points_right = min(row_w, points_left + int(row_w * 0.07))
         points_top = int(row_h * 0.45)
         points_bottom = int(row_h * (1.0 -0.18))
+        date_left = int(row_w * 0.87)
 
         if debug_dir is not None:
             row_vis = row_color.copy()
@@ -636,6 +638,13 @@ def collect_expeditions_for_screenshot(
                 (int(nightlord_left), 0),
                 (int(nightlord_left + nw), nh),
                 (0, 255, 0),
+                2,
+            )
+            cv2.rectangle(
+                row_vis,
+                (day_search_left, 0),
+                (day_search_right, row_h),
+                (255, 255, 255),
                 2,
             )
             cv2.rectangle(
@@ -671,8 +680,7 @@ def collect_expeditions_for_screenshot(
             logging.info("Duplicate expedition skipped by date %s", recognized_date)
             continue
 
-        day_search_left = max(0, (nx + nw) - row_left)
-        day_value = detect_day(row_gray, day_templates, day_search_left)
+        day_value = detect_day(row_gray, day_templates, day_search_left, day_search_right)
 
         points_crop = row_gray[points_top:points_bottom, points_left:points_right]
         points_value, points_preprocessed = recognize_points(points_crop)
