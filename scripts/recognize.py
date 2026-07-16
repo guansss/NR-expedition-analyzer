@@ -34,6 +34,11 @@ def configure_logging() -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Recognize expeditions from screenshots.")
     parser.add_argument(
+        "-n",
+        type=int,
+        help="Number of screenshots to process (default: all).",
+    )
+    parser.add_argument(
         "--hide-date",
         action="store_true",
         help="Hide expedition's date in saved images and generate webpage.",
@@ -729,6 +734,7 @@ def main() -> None:
     global hide_date
 
     args = parse_args()
+    num_screenshots = args.n if args.n is not None and args.n > 0 else None
     hide_date = bool(args.hide_date)
 
     configure_logging()
@@ -756,7 +762,7 @@ def main() -> None:
         path
         for path in sorted(screenshots_dir.iterdir())
         if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES
-    ]
+    ][:num_screenshots]
 
     all_expeditions: list[dict[str, Any]] = []
     date_cache: set[str] = set()
