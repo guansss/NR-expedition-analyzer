@@ -552,12 +552,10 @@
 
       function boot() {
         renderHeader()
-        const rows = expeditions
-          .filter((row) => !row.excluded)
-          .map((row, index, arr) => ({
-            ...row,
-            number: arr.length - index,
-          }))
+        const rows = expeditions.map((row, index, arr) => ({
+          ...row,
+          number: arr.length - index,
+        }))
         setStats(rows)
         renderTable(rows)
         renderPointsChart(rows)

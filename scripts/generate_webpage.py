@@ -50,6 +50,8 @@ def main() -> None:
     expeditions = expeditions if isinstance(expeditions, list) else []
     translations = translations if isinstance(translations, dict) else {}
 
+    expeditions = [e for e in expeditions if not e.get("excluded", False) and not e.get("outdated", False)]
+
     if "hide_date" in expeditions_metadata:
         for expedition in expeditions:
             expedition.pop("date", None)

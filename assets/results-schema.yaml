@@ -54,3 +54,5 @@ items:
       anyOf:
         - type: "null"
         - type: string
+    outdated:
+      type: boolean

@@ -521,6 +521,9 @@ def merge_custom_fields(
         item["excluded"] = bool(old_item.get("excluded", False))
         item["status"] = str(old_item.get("status", item["status"]))
         item["note"] = old_item.get("note", "")
+        if item["note"] is None:
+            item["note"] = ""
+        item.pop("outdated", None)
 
         if item["day"] == "day3-victory" and item["status"] != "victory":
             logging.warning(
@@ -530,9 +533,20 @@ def merge_custom_fields(
                 item["status"],
             )
 
-    for date in sorted(previous_by_date):
+    outdated = []
+    for date, item in previous_by_date.items():
         if date not in matched_dates:
-            logging.warning("Custom data discarded for unmatched expedition date: %s", date)
+            if not item.get("note", "") and item.get("status", "") == get_default_status(item.get("day", "day0")):
+                continue
+            item["outdated"] = True
+            outdated.append(item)
+
+    if len(outdated) > 0:
+        logging.warning(
+            "Found %d outdated expeditions in previous results that are not present in the current recognition.",
+            len(outdated),
+        )
+        recognized.extend(outdated)
 
 
 def load_schema(schema_path: Path) -> None:
@@ -558,6 +572,12 @@ def detect_day(row_gray: Any, day_templates: list[dict[str, Any]], search_left: 
         return str(match["name"])
     logging.warning("Day icon not recognized, fallback to day0")
     return "day0"
+
+
+def get_default_status(day_value: str) -> str:
+    if day_value == "day3-victory":
+        return "victory"
+    return "defeat"
 
 
 def collect_expeditions_for_screenshot(
@@ -725,6 +745,7 @@ def collect_expeditions_for_screenshot(
 
 def save_results(path: Path, expeditions: list[dict[str, Any]]) -> None:
     content = yaml.safe_dump(expeditions, allow_unicode=True, sort_keys=False)
+    content = content.replace("note: ''", "note: ")
     if hide_date:
         content = "# hide_date\n" + content
     path.write_text(content, encoding="utf-8")
@@ -795,7 +816,11 @@ def main() -> None:
 
     save_results(results_path, all_expeditions)
 
-    logging.info("Recognition complete. Total expeditions: %s", len(all_expeditions))
+    len_outdated_expeditions = sum(1 for item in all_expeditions if item.get("outdated", False))
+    if len_outdated_expeditions > 0:
+      logging.info("Recognition complete. Total expeditions: %s (+%s outdated)", len(all_expeditions) - len_outdated_expeditions, len_outdated_expeditions)
+    else:
+      logging.info("Recognition complete. Total expeditions: %s", len(all_expeditions))
 
 
 if __name__ == "__main__":
