@@ -152,23 +152,26 @@
       </div>
 
       <div class="row mb-4">
-        <div class="chart-panel">
-          <h2 class="h5 mb-3">Points Trend</h2>
-          <div class="chart" id="points-chart"></div>
+        <div class="col-12">
+          <div class="chart-panel">
+            <h2 class="h5 mb-3">Points Trend</h2>
+            <div class="chart" id="points-chart"></div>
+          </div>
         </div>
       </div>
 
       <div class="row mb-4">
-        <div class="chart-panel">
-          <h2 class="h5 mb-3">Nightlord Distribution</h2>
-          <div class="chart" id="nightlord-chart"></div>
+        <div class="col-12 col-md-6">
+          <div class="chart-panel">
+            <h2 class="h5 mb-3">Status Distribution</h2>
+            <div class="chart" id="status-chart"></div>
+          </div>
         </div>
-      </div>
-
-      <div class="row mb-4">
-        <div class="chart-panel">
-          <h2 class="h5 mb-3">Status Distribution</h2>
-          <div class="chart" id="status-chart"></div>
+        <div class="col-12 col-md-6">
+          <div class="chart-panel">
+            <h2 class="h5 mb-3">Nightlord Distribution</h2>
+            <div class="chart" id="nightlord-chart"></div>
+          </div>
         </div>
       </div>
 
@@ -217,6 +220,10 @@
 
       function displayStatus(value) {
         return t("status", value, value)
+      }
+
+      function displayDepth(value) {
+        return t("depths", value, value)
       }
 
       function setStats(visibleRows) {
@@ -356,55 +363,68 @@
         })
         const depthRanks = [
           { name: "D1", cap: 1000, color: "#f7f5fb" },
-          { name: "D2", cap: 2000, color: "#f0ebf8" },
-          { name: "D3", cap: 4000, color: "#e8e2f4" },
-          { name: "D4", cap: 6000, color: "#e1d8f1" },
-          { name: "D5", cap: 9999, color: "#d9ceed" },
+          { name: "D2", cap: 2000, color: "#e8e2f4" },
+          { name: "D3", cap: 4000, color: "#d9ceed" },
+          { name: "D4", cap: 6000, color: "#cabae6" },
+          { name: "D5", cap: 9999, color: "#b39ddb" },
         ]
-        // fake series to visualize layers of depth ranks
-        const depthRankSeries = depthRanks.map((rank) => {
-          let prevPoints = 0
-          const data = rows.map((row) => {
-            const points = row.points === -1 ? prevPoints : Math.min(row.points, rank.cap)
-            prevPoints = points
-            return { value: points }
+        function getDepthRank(points) {
+          return depthRanks.find((rank) => points < rank.cap) || depthRanks[depthRanks.length - 1]
+        }
+        const depthSeries = Object.fromEntries(
+          depthRanks.map((rank) => [
+            rank.name,
+            {
+              type: "line",
+              // showSymbol: false,
+              silent: true,
+              emphasis: { disabled: true },
+              connectNulls: false,
+              name: displayDepth(rank.name),
+              data: [],
+              itemStyle: { opacity: 0, color: rank.color },
+              lineStyle: { width: 0 },
+              areaStyle: { color: rank.color },
+            },
+          ]),
+        )
+
+        // If expedition n has points that fit in a rank, then expedition n+1 should be in this rank.
+        let currentRank = null
+        for (let i = 0; i < pointsData.length; i++) {
+          const item = pointsData[i]
+          if (item === null) {
+            Object.values(depthSeries).forEach((series) => series.data.push(null))
+            continue
+          }
+          // The first expedition's rank can't be determined, so we have to assume its rank matches its points.
+          if (currentRank === null) {
+            currentRank = getDepthRank(item.value)
+          }
+          const nextRank = getDepthRank(item.value)
+          Object.entries(depthSeries).forEach(([name, series]) => {
+            if (name === currentRank.name || name === nextRank.name) {
+              series.data.push(item.value)
+            } else {
+              series.data.push(null)
+            }
           })
-          return {
-            type: "line",
-            stack: "rank",
-            stackStrategy: "all",
-            showSymbol: false,
-            silent: true,
-            emphasis: { disabled: true },
-            name: rank.name,
-            data,
-            itemStyle: { opacity: 0 },
-            lineStyle: { width: 0 },
-            areaStyle: { color: rank.color },
-          }
-        })
-        // correct rank points according to the "stack" feature
-        depthRankSeries.forEach((series, index) => {
-          for (let rankIndex = index - 1; rankIndex >= 0; rankIndex--) {
-            series.data.forEach((item, itemIndex) => {
-              const prevItem = depthRankSeries[rankIndex].data[itemIndex]
-              item.value -= prevItem.value
-            })
-          }
-        })
+          currentRank = nextRank
+        }
 
         chart.setOption({
-          grid: { left: 30, right: 20, top: 20, bottom: 30, containLabel: true },
+          grid: { left: 30, right: 20, top: 20, bottom: 40, containLabel: true },
           dataZoom: [{ type: "inside" }],
           tooltip: {
             trigger: "axis",
+            axisPointer: { lineStyle: { width: 1, color: "#888888" } },
             formatter: (items) => {
               if (!items || !items.length) return ""
               const index = items[0].dataIndex
               const row = rows[index]
               return [
                 `#${index + 1}`,
-                displayNightlord(row.nightlord) || '?',
+                displayNightlord(row.nightlord) || "?",
                 `${displayStatus(row.status)}(${displayDay(row.day)})`,
                 `分数: ${row.points}`,
                 row.date,
@@ -417,11 +437,17 @@
             type: "category",
             data: xAxisData,
             axisLabel: { show: false },
+            axisTick: { show: false },
           },
           yAxis: {
             type: "value",
             min: 0,
             max: 9999,
+          },
+          legend: {
+            bottom: 0,
+            icon: "roundRect",
+            itemStyle: { opacity: 1 },
           },
           series: [
             {
@@ -429,9 +455,9 @@
               smooth: false,
               data: pointsData,
               connectNulls: false,
-              lineStyle: { width: 2, color: "#6b7280" },
+              lineStyle: { width: 2, color: "#7E57C2" },
             },
-            ...depthRankSeries,
+            ...Object.values(depthSeries),
           ],
         })
 

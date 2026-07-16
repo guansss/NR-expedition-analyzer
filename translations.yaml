@@ -23,6 +23,13 @@ days:
   day3: 最终日
   day3-victory: 最终日
 
+depths:
+  D1: 深1
+  D2: 深2
+  D3: 深3
+  D4: 深4
+  D5: 深5
+
 nightlords:
   Gladius: 三狼
   Gladius-everdark: 三狼(永夜)
