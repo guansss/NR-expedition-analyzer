@@ -839,8 +839,8 @@ def main() -> None:
 
     root = repo_root()
     screenshots_dir = root / "data" / "expeditions"
-    crops_dir = root / "data" / "expeditions-recognized"
-    debug_dir = crops_dir / "debug" if DEBUG_MODE else None
+    crops_dir = root / "web" / "crops"
+    debug_dir = root / "debug" if DEBUG_MODE else None
     nightlords_dir = root / "assets" / "expedition-nightlords"
     days_dir = root / "assets" / "days"
     character_dir = root / "assets" / "nightfarers"

@@ -325,7 +325,7 @@
               button.className = "image-icon btn btn-light btn-sm"
               button.type = "button"
               button.textContent = "📷"
-              const src = `data/expeditions-recognized/${value}`
+              const src = `crops/${value}`
               button.addEventListener("click", (event) => showPreview(src, event))
               td.appendChild(button)
             } else if (column === "date") {

@@ -40,7 +40,8 @@ def main() -> None:
     template_path = root / "assets" / "template.html"
     results_path = root / "results.yaml"
     translations_path = root / "translations.yaml"
-    output_path = root / "index.html"
+    web_root = root / "web"
+    output_path = web_root / "index.html"
 
     if not template_path.exists():
         raise FileNotFoundError(f"Template file not found: {template_path}")
@@ -63,6 +64,8 @@ def main() -> None:
         .replace(PLACEHOLDER_GENERATED_AT, dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     )
 
+    if not output_path.parent.exists():
+        output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(html, encoding="utf-8")
 
 
