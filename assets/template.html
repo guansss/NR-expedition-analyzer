@@ -273,9 +273,10 @@
         previewImage.onload = () => {
           const buttonRect = button.getBoundingClientRect()
           const rowRect = row.getBoundingClientRect()
-          previewImage.style.maxWidth = `${rowRect.width}px`
-          preview.style.left = `${rowRect.left}px`
-          preview.style.top = `${(rowRect.height - previewImage.naturalHeight) / 2 + rowRect.top}px`
+          previewImage.style.maxWidth = `${Math.min(rowRect.width, window.innerWidth - 30)}px`
+          const expectedWidth = Math.min(previewImage.naturalWidth, previewImage.width)
+          preview.style.left = `${Math.max(0, Math.min(rowRect.left, (innerWidth - expectedWidth - 30) / 2))}px`
+          preview.style.top = `${Math.max(0, (rowRect.height - previewImage.naturalHeight) / 2 + rowRect.top)}px`
         }
         previewImage.src = src
         preview.style.display = "block"
