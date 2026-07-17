@@ -37,6 +37,10 @@ items:
     day:
       type: string
       enum: [day0, day1, day2, day3, day3-victory]
+    team:
+      type: array
+      items:
+        type: string
     points:
       type: integer
       minimum: -1

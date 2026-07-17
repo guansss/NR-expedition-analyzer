@@ -54,6 +54,7 @@
         border: 1px solid #e2e8f0;
         border-radius: 16px;
         padding: 16px;
+        overflow-x: auto;
       }
 
       .chart {
@@ -123,6 +124,7 @@
 
       .table td,
       .table th {
+        white-space: nowrap;
         vertical-align: middle;
       }
     </style>
@@ -137,13 +139,13 @@
       </div>
 
       <div class="row g-3 mb-4">
-        <div class="col-12 col-md-6 col-xl-3">
+        <div class="col-12 col-sm-6 col-md-3">
           <div class="stat-card">
             <div class="muted" id="label-total">Total</div>
             <div class="stat-value" id="total-expeditions">0</div>
           </div>
         </div>
-        <div class="col-12 col-md-6 col-xl-3">
+        <div class="col-12 col-sm-6 col-md-3">
           <div class="stat-card">
             <div class="muted" id="label-victories">Victories</div>
             <div class="stat-value" id="total-victories">0</div>
@@ -160,7 +162,7 @@
         </div>
       </div>
 
-      <div class="row mb-4">
+      <div class="row g-3 mb-4">
         <div class="col-12 col-md-6">
           <div class="chart-panel">
             <h2 class="h5 mb-3">Status Distribution</h2>
@@ -171,6 +173,21 @@
           <div class="chart-panel">
             <h2 class="h5 mb-3">Nightlord Distribution</h2>
             <div class="chart" id="nightlord-chart"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-12 col-md-6">
+          <div class="chart-panel">
+            <h2 class="h5 mb-3">Played As</h2>
+            <div class="chart" id="character-chart"></div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="chart-panel">
+            <h2 class="h5 mb-3">Teammates</h2>
+            <div class="chart" id="teammates-chart"></div>
           </div>
         </div>
       </div>
@@ -198,7 +215,7 @@
       const previewImage = preview.querySelector("img")
 
       const HIDE_DATE = expeditions.some((row) => row.date === undefined || row.date === null)
-      const COLUMNS = ["number", "nightlord", "day", "points", "image", "status", "note"]
+      const COLUMNS = ["number", "nightlord", "day", "team", "points", "image", "status", "note"]
       if (!HIDE_DATE) {
         COLUMNS.unshift("date")
       }
@@ -216,6 +233,10 @@
 
       function displayNightlord(value) {
         return t("nightlords", value, value)
+      }
+
+      function displayCharacter(value) {
+        return t("nightfarers", value, value)
       }
 
       function displayStatus(value) {
@@ -297,6 +318,8 @@
               td.textContent = displayDay(String(value))
             } else if (column === "status") {
               td.textContent = displayStatus(String(value))
+            } else if (column === "team") {
+              td.textContent = Array.isArray(value) ? value.map(displayCharacter).join(", ") : ""
             } else if (column === "image") {
               const button = document.createElement("button")
               button.className = "image-icon btn btn-light btn-sm"
@@ -413,7 +436,7 @@
         }
 
         chart.setOption({
-          grid: { left: 30, right: 20, top: 20, bottom: 40, containLabel: true },
+          grid: { left: 10, right: 10, top: 20, bottom: 40, containLabel: true },
           dataZoom: [{ type: "inside" }],
           tooltip: {
             trigger: "axis",
@@ -493,7 +516,7 @@
 
         const chart = echarts.init(document.getElementById("nightlord-chart"))
         chart.setOption({
-          grid: { left: 30, right: 20, top: 20, bottom: 30, containLabel: true },
+          grid: { left: 10, right: 10, top: 20, bottom: 10, containLabel: true },
           tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
           xAxis: {
             type: "category",
@@ -576,6 +599,92 @@
         window.addEventListener("resize", () => chart.resize())
       }
 
+      function renderCharacterChart(rows) {
+        const grouped = new Map()
+        rows.forEach((row) => {
+          if (row.team && row.team.length > 0) {
+            const key = row.team[0]
+            grouped.set(key, (grouped.get(key) || 0) + 1)
+          }
+        })
+
+        const data = Array.from(grouped.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([character, count]) => ({
+            name: displayCharacter(character),
+            value: count,
+          }))
+
+        const chart = echarts.init(document.getElementById("character-chart"))
+        chart.setOption({
+          tooltip: {
+            trigger: "item",
+            formatter: ({ name, value, percent }) => `${name}<br>${value} (${percent}%)`,
+          },
+          series: [
+            {
+              name: "Character",
+              type: "pie",
+              radius: ["42%", "72%"],
+              center: ["50%", "45%"],
+              avoidLabelOverlap: true,
+              itemStyle: {
+                borderColor: "#ffffff",
+                borderWidth: 2,
+              },
+              label: {},
+              data,
+            },
+          ],
+        })
+
+        window.addEventListener("resize", () => chart.resize())
+      }
+
+      function renderTeammatesChart(rows) {
+        const grouped = new Map()
+        rows.forEach((row) => {
+          if (row.team && row.team.length > 2) {
+            for (let i = 1; i < row.team.length; i++) {
+              const key = row.team[i]
+              grouped.set(key, (grouped.get(key) || 0) + 1)
+            }
+          }
+        })
+
+        const data = Array.from(grouped.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([teammate, count]) => ({
+            name: displayCharacter(teammate),
+            value: count,
+          }))
+
+        const chart = echarts.init(document.getElementById("teammates-chart"))
+        chart.setOption({
+          tooltip: {
+            trigger: "item",
+            formatter: ({ name, value, percent }) => `${name}<br>${value} (${percent}%)`,
+          },
+          series: [
+            {
+              name: "Teammates",
+              type: "pie",
+              radius: ["42%", "72%"],
+              center: ["50%", "45%"],
+              avoidLabelOverlap: true,
+              itemStyle: {
+                borderColor: "#ffffff",
+                borderWidth: 2,
+              },
+              label: {},
+              data,
+            },
+          ],
+        })
+
+        window.addEventListener("resize", () => chart.resize())
+      }
+
       function boot() {
         renderHeader()
         const rows = expeditions.map((row, index, arr) => ({
@@ -587,6 +696,8 @@
         renderPointsChart(rows)
         renderNightlordChart(rows)
         renderStatusChart(rows)
+        renderCharacterChart(rows)
+        renderTeammatesChart(rows)
       }
 
       boot()

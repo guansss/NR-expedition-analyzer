@@ -2,6 +2,7 @@ UI:
   number: 序号
   nightlord: 夜王
   day: 进度
+  team: 队伍
   points: 分数
   date: 日期
   image: 截图
@@ -49,3 +50,15 @@ nightlords:
   Harmonia-everdark: 七仙女(永夜)
   Straghess: 垃圾王
   Heolstor: 布德奇冥
+
+nightfarers:
+  Wylder: 追踪者
+  Guardian: 守护者
+  Ironeye: 铁眼
+  Duchess: 女爵
+  Raider: 无赖
+  Revenant: 复仇者
+  Recluse: 隐士
+  Executor: 执行者
+  Scholar: 学者
+  Undertaker: 送葬者

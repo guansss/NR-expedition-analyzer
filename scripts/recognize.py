@@ -13,13 +13,16 @@ from paddleocr import TextRecognition
 import yaml
 from jsonschema import validate
 
+DEBUG_MODE = True
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
+SCREENSHOT_BASE_WIDTH = 2560
+SCREENSHOT_PROCESS_MAX_WIDTH = 1920
+CHARACTER_TEMPLATE_SECONDARY_SCALE = 0.837
 EXPECTED_ROWS_PER_SCREENSHOT = 8
 NIGHTLORD_REGION_LEFT_RATIO = 0.078
 NIGHTLORD_REGION_TOP_RATIO = 0.215
 NIGHTLORD_SEARCH_WIDTH_RATIO = 0.45
-RECOGNITION_DEBUG_DIRNAME = "debug"
 POINTS_ALLOWED_CHARS = set("0123456789")
 
 hide_date = False
@@ -76,17 +79,18 @@ def load_templates(template_dir: Path, use_color: bool = False) -> list[dict[str
             elif raw_image.shape[2] == 4:
                 image = raw_image[:, :, :3]
                 alpha = raw_image[:, :, 3]
-                mask = cv2.threshold(alpha, 0, 255, cv2.THRESH_BINARY)[1]
+                mask = cv2.threshold(alpha, 128, 255, cv2.THRESH_BINARY)[1]
 
         h, w = image.shape[:2]
         templates.append({"name": path.stem, "image": image, "mask": mask, "h": h, "w": w})
     return templates
 
 
-def best_template_match(region: Any, templates: list[dict[str, Any]]) -> dict[str, Any] | None:
+def best_template_match(region: Any, templates: list[dict[str, Any]], debug_tag: str | None = None) -> dict[str, Any] | None:
     best: dict[str, Any] | None = None
     best_score = -1.0
     region_h, region_w = region.shape[:2]
+    scores = []
 
     for template in templates:
         tpl = template["image"]
@@ -97,6 +101,10 @@ def best_template_match(region: Any, templates: list[dict[str, Any]]) -> dict[st
         method = cv2.TM_CCORR_NORMED if mask is not None else cv2.TM_CCOEFF_NORMED
         response = cv2.matchTemplate(region, tpl, method, mask=mask)
         _, max_val, _, max_loc = cv2.minMaxLoc(response)
+        scores.append({
+            "name": template["name"],
+            "score": float(max_val),
+        })
         if max_val > best_score:
             best_score = float(max_val)
             best = {
@@ -108,7 +116,21 @@ def best_template_match(region: Any, templates: list[dict[str, Any]]) -> dict[st
                 "h": int(template["h"]),
             }
 
+    if debug_tag is not None:
+        logging.info(
+            "Template match: %s| Best: %s (%s) | %s",
+            debug_tag,
+            best["name"] if best else "None",
+            f"{best['score']:.3f}" if best else "N/A",
+            ", ".join(f"{s['name']}={s['score']:.3f}" for s in scores),
+        )
     return best
+
+
+def is_region_uniform(image: Any, threshold: float = 10.0) -> bool:
+    gray = image if len(image.shape) == 2 else cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+    return blurred.std() < threshold
 
 
 def base_nightlord_name(name: str) -> str:
@@ -434,6 +456,8 @@ def recognize_date(date_image: Any) -> str | None:
 
 def recognize_points(points_image: Any) -> int:
     gray = points_image if len(points_image.shape) == 2 else cv2.cvtColor(points_image, cv2.COLOR_BGR2GRAY)
+    if is_region_uniform(gray):
+        return -1, gray
 
     variants: list[Any] = []
     base = gray
@@ -540,10 +564,9 @@ def merge_custom_fields(
     outdated = []
     for date, item in previous_by_date.items():
         if date not in matched_dates:
-            if not item.get("note", "") and item.get("status", "") == get_default_status(item.get("day", "day0")):
-                continue
-            item["outdated"] = True
-            outdated.append(item)
+            if item.get("note", "") or item.get("status", "") != get_default_status(item.get("day", "day0")) or item.get("excluded") != False:
+                item["outdated"] = True
+                outdated.append(item)
 
     if len(outdated) > 0:
         logging.warning(
@@ -566,16 +589,28 @@ def clean_directory(directory: Path) -> None:
             path.unlink()
 
 
-def detect_day(row_gray: Any, day_templates: list[dict[str, Any]], search_left: int, search_right: int, threshold: float = 0.75) -> str:
+def detect_day(row_gray: Any, day_templates: list[dict[str, Any]], search_left: int, search_right: int, search_top: int, search_bottom: int, threshold: float = 0.75) -> str:
     row_h, row_w = row_gray.shape
     left = max(0, min(search_left, row_w - 1))
     right = max(left + 1, min(search_right, row_w))
-    day_region = row_gray[:, left:right]
+    day_region = row_gray[search_top:search_bottom, left:right]
     match = best_template_match(day_region, day_templates)
     if match and match["score"] >= threshold:
         return str(match["name"])
     logging.warning("Day icon not recognized, fallback to day0")
     return "day0"
+
+def detect_character(row_color: Any, character_templates: list[dict[str, Any]], search_left: int, search_right: int, search_top: int, search_bottom: int, threshold: float = 0.75, debug_tag: str | None = None) -> dict[str, Any] | None:
+    row_h, row_w = row_color.shape[:2]
+    left = max(0, min(search_left, row_w - 1))
+    right = max(left + 1, min(search_right, row_w))
+    character_region = row_color[search_top:search_bottom, left:right]
+    if is_region_uniform(character_region):
+        return None
+    match = best_template_match(character_region, character_templates, debug_tag=debug_tag)
+    if match and match["score"] >= threshold:
+        return match
+    return None
 
 
 def get_default_status(day_value: str) -> str:
@@ -584,18 +619,52 @@ def get_default_status(day_value: str) -> str:
     return "defeat"
 
 
+def scale_template(template: dict[str, Any], scale: float) -> dict[str, Any]:
+    if scale == 1.0:
+        return template
+    scaled_template = template.copy()
+    scaled_template["image"] = cv2.resize(template["image"], (int(template["w"] * scale), int(template["h"] * scale)), interpolation=cv2.INTER_AREA)
+    scaled_template["w"] = scaled_template["image"].shape[1]
+    scaled_template["h"] = scaled_template["image"].shape[0]
+    if template.get("mask") is not None:
+        scaled_template["mask"] = cv2.resize(template["mask"], (scaled_template["w"], scaled_template["h"]), interpolation=cv2.INTER_NEAREST)
+    return scaled_template
+
+
 def collect_expeditions_for_screenshot(
     screenshot_path: Path,
     nightlord_templates: list[dict[str, Any]],
     day_templates: list[dict[str, Any]],
+    character_templates: list[dict[str, Any]],
     crops_dir: Path,
-    debug_dir: Path,
+    debug_dir: Path | None,
     date_cache: set[str],
 ) -> list[dict[str, Any]]:
     color_image = cv2.imread(str(screenshot_path), cv2.IMREAD_COLOR)
     if color_image is None:
         logging.warning("Failed to load screenshot: %s", screenshot_path)
         return []
+    
+    if color_image.shape[0] / color_image.shape[1] != 9 / 16:
+        logging.warning("Screenshot %s is not in 16:9 aspect ratio, results may be inaccurate.", screenshot_path.name)
+
+    if color_image.shape[1] > SCREENSHOT_PROCESS_MAX_WIDTH:
+        image_scale = SCREENSHOT_PROCESS_MAX_WIDTH / color_image.shape[1]
+        new_width = int(color_image.shape[1] * image_scale)
+        new_height = int(color_image.shape[0] * image_scale)
+        color_image = cv2.resize(color_image, (new_width, new_height), interpolation=cv2.INTER_AREA)
+
+    # templates are designed for screenshots with width SCREENSHOT_BASE_WIDTH, so we need to scale them accordingly.
+    template_scale = color_image.shape[1] / SCREENSHOT_BASE_WIDTH
+    logging.info("Processing screenshot %s with scale %.2f", screenshot_path.name, template_scale)
+
+    if template_scale != 1.0:
+        nightlord_templates = [scale_template(t, template_scale) for t in nightlord_templates]
+        character_templates = [scale_template(t, template_scale) for t in character_templates]
+        day_templates = [scale_template(t, template_scale) for t in day_templates]
+
+    character_templates_primary = character_templates
+    character_templates_secondary = [scale_template(t, CHARACTER_TEMPLATE_SECONDARY_SCALE) for t in character_templates]
 
     gray_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
     image_h, image_w = gray_image.shape
@@ -651,73 +720,73 @@ def collect_expeditions_for_screenshot(
         row_gray = gray_image[row_top:row_bottom, row_left:row_right]
         row_h, row_w = row_gray.shape
 
+        day_search_top = int(row_h * 0.05)
+        day_search_bottom = int(row_h * (1.0 - 0.1))
         day_search_left = max(0, (nx + nw) - row_left + int(row_w * 0.03))
         day_search_right = min(row_w, day_search_left + int(row_w * 0.25))
+        char_top = int(row_h * 0.05)
+        char_bottom = int(row_h * (1.0 - 0.05))
+        char_left = int(row_w * 0.435)
+        char_interval1 = char_left + int(row_w * 0.085)
+        char_interval2 = char_interval1 + int(row_w * 0.085)
+        char_right = char_interval2 + int(row_w * 0.085)
         points_left = int(row_w * 0.77)
         points_right = min(row_w, points_left + int(row_w * 0.07))
         points_top = int(row_h * 0.45)
-        points_bottom = int(row_h * (1.0 -0.18))
+        points_bottom = int(row_h * (1.0 - 0.18))
         date_left = int(row_w * 0.87)
 
+        row_debug = None
+        def save_debug_image() -> None:
+            if debug_dir is not None and row_debug is not None:
+                write_debug_image(debug_dir / f"{row_key}.jpg", row_debug)
         if debug_dir is not None:
-            row_vis = row_color.copy()
+            row_debug = row_color.copy()
             nightlord_left = nx - row_left
-            cv2.rectangle(
-                row_vis,
-                (int(nightlord_left), 0),
-                (int(nightlord_left + nw), nh),
-                (0, 255, 0),
-                2,
-            )
-            cv2.rectangle(
-                row_vis,
-                (day_search_left, 0),
-                (day_search_right, row_h),
-                (255, 255, 255),
-                2,
-            )
-            cv2.rectangle(
-                row_vis,
-                (points_left, points_top),
-                (points_right, points_bottom),
-                (255, 255, 255),
-                2,
-            )
-            cv2.rectangle(
-                row_vis,
-                (date_left, 0),
-                (row_w, row_h),
-                (255, 255, 255),
-                2,
-            )
-            cv2.line(
-                row_vis,
-                (date_left, int(row_h * 0.5)),
-                (row_w, int(row_h * 0.5)),
-                (255, 255, 255),
-                2,
-            )
-            write_debug_image(debug_dir / f"{row_key}.jpg", row_vis)
+            cv2.rectangle(row_debug, (int(nightlord_left), 0), (int(nightlord_left + nw), nh), (0, 255, 0), 2)
+            cv2.putText(row_debug, nightlord_match["name"], (int(nightlord_left) + 2, nh - 5), cv2.FONT_HERSHEY_PLAIN, 0.8, (0, 255, 0), 1)
+            cv2.rectangle(row_debug, (day_search_left, day_search_top), (day_search_right, day_search_bottom), (255, 255, 255), 2)
+            cv2.rectangle(row_debug, (char_left, char_top), (char_right, char_bottom), (255, 255, 255), 2)
+            cv2.line(row_debug, (char_interval1, char_top), (char_interval1, char_bottom), (255, 255, 255), 2)
+            cv2.line(row_debug, (char_interval2, char_top), (char_interval2, char_bottom), (255, 255, 255), 2)
+            cv2.rectangle(row_debug, (points_left, points_top), (points_right, points_bottom), (255, 255, 255), 2)
+            cv2.rectangle(row_debug, (date_left, 0), (row_w, row_h), (255, 255, 255), 2)
+            cv2.line(row_debug, (date_left, int(row_h * 0.5)), (row_w, int(row_h * 0.5)), (255, 255, 255), 2)
 
         date_crop = row_gray[:, date_left:row_w]
         recognized_date = recognize_date(date_crop)
         if not recognized_date:
             logging.warning("Date OCR failed at row %s in %s", row_idx, screenshot_path.name)
+            save_debug_image()
             continue
 
         if recognized_date in date_cache:
             logging.info("Duplicate expedition skipped by date %s", recognized_date)
+            save_debug_image()
             continue
 
-        day_value = detect_day(row_gray, day_templates, day_search_left, day_search_right)
+        char_results = [
+            detect_character(row_color, character_templates_primary, char_left, char_interval1, char_top, char_bottom),
+            detect_character(row_color, character_templates_secondary, char_interval1, char_interval2, char_top, char_bottom),
+            detect_character(row_color, character_templates_secondary, char_interval2, char_right, char_top, char_bottom)
+        ]
+        characters = [result['name'] for result in char_results if result is not None]
+        if not characters:
+            logging.warning("No characters recognized at row %s in %s", row_idx, screenshot_path.name)
+        if row_debug is not None:
+            for idx, result in enumerate(char_results):
+                if result is not None:
+                    char_x = int(result["x"]) + [char_left, char_interval1, char_interval2][idx]
+                    char_y = int(result["y"])
+                    char_w = int(result["w"])
+                    char_h = int(result["h"])
+                    cv2.rectangle(row_debug, (char_x, char_y), (char_x + char_w, char_y + char_h), (0, 255, 0), 2)
+                    cv2.putText(row_debug, result["name"], (char_x + 2, char_y + char_h - 5), cv2.FONT_HERSHEY_PLAIN, 0.8, (0, 255, 0), 1)
+
+        day_value = detect_day(row_gray, day_templates, day_search_left, day_search_right, day_search_top, day_search_bottom)
 
         points_crop = row_gray[points_top:points_bottom, points_left:points_right]
         points_value, points_preprocessed = recognize_points(points_crop)
-        # if debug_dir is not None:
-        #     write_debug_image(debug_dir / f"{row_key}_{points_value}.jpg", points_preprocessed)
-
-        if points_value == -1:
-            logging.warning("Points OCR failed at row %s in %s", row_idx, screenshot_path.name)
 
         image_name = f"{row_key}.jpg"
         row_save = row_color[:, :date_left] if hide_date else row_color
@@ -726,6 +795,7 @@ def collect_expeditions_for_screenshot(
         expedition = {
             "nightlord": str(nightlord_match["name"]),
             "day": day_value,
+            "team": characters,
             "points": points_value,
             "date": recognized_date,
             "image": image_name,
@@ -737,12 +807,15 @@ def collect_expeditions_for_screenshot(
         date_cache.add(recognized_date)
 
         logging.info(
-            "Recognized %s day=%s points=%s date=%s",
+            "Recognized %s day=%s team=%s points=%s date=%s",
             expedition["nightlord"],
             expedition["day"],
+            "|".join(expedition["team"]),
             expedition["points"],
             expedition["date"],
         )
+
+        save_debug_image()
 
     return expeditions
 
@@ -767,21 +840,26 @@ def main() -> None:
     root = repo_root()
     screenshots_dir = root / "data" / "expeditions"
     crops_dir = root / "data" / "expeditions-recognized"
-    debug_dir = crops_dir / RECOGNITION_DEBUG_DIRNAME
+    debug_dir = crops_dir / "debug" if DEBUG_MODE else None
     nightlords_dir = root / "assets" / "expedition-nightlords"
     days_dir = root / "assets" / "days"
+    character_dir = root / "assets" / "nightfarers"
     schema_path = root / "assets" / "results-schema.yaml"
     results_path = root / "results.yaml"
 
     clean_directory(crops_dir)
-    clean_directory(debug_dir)
+    if debug_dir is not None:
+        clean_directory(debug_dir)
 
     nightlord_templates = load_templates(nightlords_dir, use_color=True)
-    day_templates = load_templates(days_dir)
     if not nightlord_templates:
         raise RuntimeError("No nightlord templates found.")
+    day_templates = load_templates(days_dir)
     if not day_templates:
         raise RuntimeError("No day templates found.")
+    character_templates = load_templates(character_dir, use_color=True)
+    if not character_templates:
+        raise RuntimeError("No character templates found.")
 
     screenshots = [
         path
@@ -799,6 +877,7 @@ def main() -> None:
                 screenshot,
                 nightlord_templates,
                 day_templates,
+                character_templates,
                 crops_dir,
                 debug_dir,
                 date_cache,
