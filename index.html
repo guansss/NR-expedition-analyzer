@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NR Expedition Analyzer</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-a: #edf8ff;
+        --bg-b: #fef8ee;
+        --card: #ffffff;
+        --ink: #1f2a37;
+        --accent: #0f766e;
+        --muted: #667085;
+        --nightlord-everdark: #5427a3;
+        --victory: #e8f8e8;
+        --defeat: #f8e8e8;
+      }
+
+      body {
+        background:
+          radial-gradient(circle at 0% 0%, var(--bg-a), transparent 45%),
+          radial-gradient(circle at 100% 0%, var(--bg-b), transparent 35%), #f8fafc;
+        color: var(--ink);
+      }
+
+      .page-wrap {
+        max-width: 1360px;
+      }
+
+      .stat-card {
+        background: var(--card);
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 16px;
+      }
+
+      .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .chart-panel,
+      .table-panel {
+        background: var(--card);
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 16px;
+        overflow-x: auto;
+      }
+
+      .chart {
+        width: 100%;
+        height: 320px;
+      }
+
+      .date {
+        color: var(--muted);
+        font-size: 0.8em;
+      }
+
+      .nightlord {
+        font-weight: 600;
+      }
+
+      .victory-row {
+        background: var(--victory);
+      }
+
+      .defeat-row {
+        background: var(--defeat);
+      }
+
+      .quit-row {
+        background: #fff7d6;
+      }
+
+      .disconnected-row {
+        background: #f1f5f9;
+      }
+
+      .invalid-row {
+        opacity: 0.5;
+      }
+
+      .points-diff {
+        margin-left: 4px;
+        font-size: 0.8em;
+        color: var(--muted);
+      }
+
+      .image-icon {
+        --bs-btn-bg: transparent;
+        --bs-btn-border-color: transparent;
+      }
+
+      #hover-preview {
+        position: fixed;
+        z-index: 1100;
+        display: none;
+        border: 1px solid #d0d5dd;
+        background: #fff;
+        border-radius: 4px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+        padding: 6px;
+      }
+
+      #hover-preview img {
+        display: block;
+      }
+
+      .table {
+        --bs-table-bg: transparent;
+        font-size: 0.9rem;
+      }
+
+      .table td,
+      .table th {
+        white-space: nowrap;
+        vertical-align: middle;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container-fluid page-wrap py-4">
+      <div class="d-flex justify-content-between align-items-end mb-4">
+        <div>
+          <h1 class="h3 mb-1">Expedition Report</h1>
+          <div class="muted">Generated at 2026-07-18 00:04:15</div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-12 col-sm-6 col-md-3">
+          <div class="stat-card">
+            <div class="muted" id="label-total">Total</div>
+            <div class="stat-value" id="total-expeditions">0</div>
+          </div>
+        </div>
+        <div class="col-12 col-sm-6 col-md-3">
+          <div class="stat-card">
+            <div class="muted" id="label-victories">Victories</div>
+            <div class="stat-value" id="total-victories">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="chart-panel">
+            <h2 class="h5 mb-3">Points Trend</h2>
+            <div class="chart" id="points-chart"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-12 col-md-6">
+          <div class="chart-panel">
+            <h2 class="h5 mb-3">Status Distribution</h2>
+            <div class="chart" id="status-chart"></div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="chart-panel">
+            <h2 class="h5 mb-3">Nightlord Distribution</h2>
+            <div class="chart" id="nightlord-chart"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-12 col-md-6">
+          <div class="chart-panel">
+            <h2 class="h5 mb-3">Played As</h2>
+            <div class="chart" id="character-chart"></div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="chart-panel">
+            <h2 class="h5 mb-3">Teammates</h2>
+            <div class="chart" id="teammates-chart"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-panel">
+        <h2 class="h5 mb-3">Expeditions</h2>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle" id="expedition-table">
+            <thead class="table-light">
+              <tr id="expedition-header"></tr>
+            </thead>
+            <tbody id="expedition-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="hover-preview"><img src="" alt="preview" /></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script>
+      const expeditions = [{"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Wylder", "Revenant"], "points": 9999, "image": "20260716213636_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Recluse", "Ironeye"], "points": 9900, "image": "20260716213636_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 9600, "image": "20260716213636_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Guardian", "Wylder"], "points": 9400, "image": "20260716213636_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Raider", "Recluse"], "points": 9100, "image": "20260716213636_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day1", "team": ["Executor", "Wylder", "Recluse"], "points": 8800, "image": "20260716213636_1_5.jpg", "excluded": false, "status": "quit", "note": "挂狗隐士"}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 9600, "image": "20260716074320_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster", "day": "day3-victory", "team": ["Executor", "Revenant", "Ironeye"], "points": 9400, "image": "20260716074320_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Wylder", "Raider"], "points": 9200, "image": "20260716074320_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Duchess"], "points": 8900, "image": "20260716074320_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Raider", "Wylder"], "points": 8700, "image": "20260716074320_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Duchess"], "points": 8500, "image": "20260716074320_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day1", "team": ["Executor", "Revenant", "Executor"], "points": 8300, "image": "20260716074320_1_6.jpg", "excluded": false, "status": "quit", "note": "双排，挂狗蜗牛"}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Wylder", "Wylder"], "points": 9100, "image": "20260716074319_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Recluse"], "points": 8900, "image": "20260716074319_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Ironeye", "Executor"], "points": 8700, "image": "20260716074319_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Guardian", "Recluse"], "points": 8500, "image": "20260716074319_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo-everdark", "day": "day1", "team": ["Executor", "Recluse", "Wylder"], "points": 8300, "image": "20260716074319_1_4.jpg", "excluded": false, "status": "disconnected", "note": "掉线炸房"}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 9100, "image": "20260716074319_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Raider", "Wylder"], "points": 8900, "image": "20260716074319_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Recluse", "Duchess"], "points": 8700, "image": "20260716074318_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Ironeye"], "points": 8500, "image": "20260716074318_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day1", "team": ["Executor", "Guardian", "Wylder"], "points": 8300, "image": "20260716074318_1_2.jpg", "excluded": false, "status": "quit", "note": "双排，挂狗鸟人，挂狗追踪者"}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Undertaker"], "points": 9100, "image": "20260716074318_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gladius", "day": "day3-victory", "team": ["Executor", "Recluse", "Duchess"], "points": 8900, "image": "20260716074318_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 8700, "image": "20260716074318_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Revenant"], "points": 8500, "image": "20260716073707_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 8200, "image": "20260716073707_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster", "day": "day3-victory", "team": ["Executor", "Wylder", "Recluse"], "points": 8000, "image": "20260716073707_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Ironeye", "Undertaker"], "points": 7800, "image": "20260716073707_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Raider", "Duchess"], "points": 7600, "image": "20260716073707_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Wylder", "Duchess"], "points": 7400, "image": "20260716073706_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Raider", "Wylder"], "points": 7200, "image": "20260716073706_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day1", "team": ["Executor", "Duchess", "Wylder"], "points": 7000, "image": "20260716073706_1_2.jpg", "excluded": false, "status": "quit", "note": "挂狗追踪者"}, {"nightlord": "Fulghor-everdark", "day": "day3-victory", "team": ["Executor", "Raider", "Duchess"], "points": 7800, "image": "20260716073706_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Duchess", "Revenant"], "points": 7600, "image": "20260716073706_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Duchess", "Scholar"], "points": 7400, "image": "20260716073706_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Recluse"], "points": 7200, "image": "20260716073706_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 7000, "image": "20260716073705_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster", "day": "day3-victory", "team": ["Executor", "Wylder", "Wylder"], "points": 6700, "image": "20260716073705_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Undertaker", "Revenant"], "points": 6500, "image": "20260716073705_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day1", "team": ["Executor", "Undertaker", "Duchess"], "points": 6200, "image": "20260716073705_1_3.jpg", "excluded": false, "status": "defeat", "note": "死于活骑士的活全家连招"}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Wylder", "Undertaker"], "points": 6600, "image": "20260716073705_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day3-victory", "team": ["Executor", "Revenant", "Ironeye"], "points": 6400, "image": "20260716073705_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gladius", "day": "day3-victory", "team": ["Executor", "Ironeye", "Wylder"], "points": 6200, "image": "20260716073705_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day1", "team": ["Executor", "Duchess", "Ironeye"], "points": 6000, "image": "20260716073704_1_0.jpg", "excluded": false, "status": "quit", "note": "挂狗女爵"}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Duchess"], "points": 6200, "image": "20260716073704_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day1", "team": ["Executor", "Wylder", "Revenant"], "points": 6000, "image": "20260716073704_1_2.jpg", "excluded": false, "status": "quit", "note": "挂狗追踪者"}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Undertaker", "Wylder"], "points": 6500, "image": "20260716073704_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Raider", "Ironeye"], "points": 6300, "image": "20260716073704_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Guardian"], "points": 6100, "image": "20260716073704_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Raider", "Ironeye"], "points": 5850, "image": "20260716073704_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Duchess", "Guardian"], "points": 5550, "image": "20260716073703_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Raider"], "points": 5250, "image": "20260716073703_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3", "team": ["Executor", "Wylder", "Duchess"], "points": 4950, "image": "20260716073703_1_2.jpg", "excluded": false, "status": "defeat", "note": "打垃圾王3人同时一倒"}, {"nightlord": "Harmonia", "day": "day1", "team": ["Executor", "Revenant", "Wylder"], "points": 5350, "image": "20260716073703_1_3.jpg", "excluded": false, "status": "quit", "note": "挂狗蜗牛，挂狗追踪者"}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Scholar", "Wylder"], "points": 5650, "image": "20260716073703_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Wylder"], "points": 5450, "image": "20260716073703_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gladius", "day": "day3-victory", "team": ["Executor", "Wylder", "Revenant"], "points": 5150, "image": "20260716071754_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Raider", "Ironeye"], "points": 4950, "image": "20260716071754_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Raider"], "points": 4700, "image": "20260716071754_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 4500, "image": "20260716071754_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Duchess", "Raider"], "points": 4300, "image": "20260716071754_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Executor", "Revenant"], "points": 4100, "image": "20260716071754_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Wylder", "Duchess"], "points": 3850, "image": "20260716071752_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gladius", "day": "day3-victory", "team": ["Executor", "Wylder", "Recluse"], "points": 3650, "image": "20260716071752_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Raider", "Wylder"], "points": 3350, "image": "20260716071752_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day1", "team": ["Executor", "Wylder", "Revenant"], "points": 3150, "image": "20260716071752_1_3.jpg", "excluded": false, "status": "quit", "note": "卡比"}, {"nightlord": "Heolstor", "day": "day1", "team": ["Executor", "Wylder", "Wylder"], "points": 3550, "image": "20260716071752_1_4.jpg", "excluded": false, "status": "quit", "note": "开局进去只剩我一个，且遗物全部失效"}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Duchess", "Raider"], "points": 4150, "image": "20260716071752_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day1", "team": ["Executor", "Ironeye", "Executor"], "points": 4000, "image": "20260716071752_1_6.jpg", "excluded": false, "status": "quit", "note": "挂狗铁眼"}, {"nightlord": "Gladius-everdark", "day": "day3-victory", "team": ["Executor", "Undertaker", "Ironeye"], "points": 4500, "image": "20260716071751_2_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Undertaker"], "points": 4300, "image": "20260716071751_2_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor-everdark", "day": "day1", "team": ["Executor", "Recluse"], "points": 4000, "image": "20260716071751_2_2.jpg", "excluded": false, "status": "invalid", "note": "开局炸房"}, {"nightlord": "Fulghor-everdark", "day": "day3", "team": ["Executor", "Revenant", "Wylder"], "points": 4000, "image": "20260716071751_2_3.jpg", "excluded": false, "status": "quit", "note": "双排，挂狗蜗牛"}, {"nightlord": "Maris-everdark", "day": "day3", "team": ["Executor", "Wylder", "Revenant"], "points": 4000, "image": "20260716071751_2_4.jpg", "excluded": false, "status": "defeat", "note": "死于王征兆真连"}, {"nightlord": "Gnoster", "day": "day3-victory", "team": ["Executor", "Recluse", "Ironeye"], "points": 4050, "image": "20260716071751_2_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster", "day": "day3-victory", "team": ["Executor", "Undertaker", "Wylder"], "points": 3850, "image": "20260716071751_2_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gladius", "day": "day3-victory", "team": ["Executor", "Undertaker", "Duchess"], "points": 3650, "image": "20260716071751_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day2", "team": ["Executor", "Raider", "Guardian"], "points": 3450, "image": "20260716071751_1_1.jpg", "excluded": false, "status": "quit", "note": "卡比"}, {"nightlord": "Heolstor", "day": "day1", "team": ["Executor", "Duchess", "Wylder"], "points": 4050, "image": "20260716071751_1_2.jpg", "excluded": false, "status": "quit", "note": "挂狗追踪者"}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Revenant", "Duchess"], "points": 4650, "image": "20260716071751_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster", "day": "day1", "team": ["Executor", "Wylder", "Undertaker"], "points": 4450, "image": "20260716071751_1_4.jpg", "excluded": false, "status": "quit", "note": "双排，挂狗追踪者，挂狗修女"}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Raider", "Scholar"], "points": 5050, "image": "20260716071751_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster", "day": "day1", "team": ["Executor", "Ironeye", "Wylder"], "points": 4850, "image": "20260716071751_1_6.jpg", "excluded": false, "status": "quit", "note": "挂狗铁眼"}, {"nightlord": "Caligo-everdark", "day": "day3-victory", "team": ["Executor", "Raider", "Wylder"], "points": 5600, "image": "20260716071750_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Duchess", "Raider"], "points": 5400, "image": "20260716071750_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day1", "team": ["Executor", "Raider", "Revenant"], "points": 5200, "image": "20260716071750_1_2.jpg", "excluded": false, "status": "quit", "note": "挂狗无赖"}, {"nightlord": "Gladius-everdark", "day": "day1", "team": ["Executor", "Revenant", "Wylder"], "points": 6000, "image": "20260716071750_1_3.jpg", "excluded": false, "status": "quit", "note": "挂狗追踪者"}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Guardian", "Revenant"], "points": 6800, "image": "20260716071750_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 6600, "image": "20260716071750_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Duchess"], "points": 6400, "image": "20260716071750_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Ironeye", "Wylder"], "points": 6200, "image": "20260716071749_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day1", "team": ["Executor", "Revenant", "Guardian"], "points": 6000, "image": "20260716071749_1_1.jpg", "excluded": false, "status": "quit", "note": "双排，挂狗蜗牛"}, {"nightlord": "Caligo", "day": "day1", "team": ["Executor", "Wylder", "Revenant"], "points": 6000, "image": "20260716071749_1_2.jpg", "excluded": false, "status": "quit", "note": "挂狗追踪者"}, {"nightlord": "Harmonia-everdark", "day": "day1", "team": ["Executor", "Wylder", "Duchess"], "points": 6200, "image": "20260716071749_1_3.jpg", "excluded": false, "status": "quit", "note": "挂狗女爵"}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Wylder", "Raider"], "points": 7000, "image": "20260716071749_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Undertaker", "Duchess"], "points": 6800, "image": "20260716071749_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Ironeye", "Wylder"], "points": 6500, "image": "20260716071749_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Duchess", "Ironeye"], "points": 6300, "image": "20260716071748_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Wylder", "Scholar"], "points": 6000, "image": "20260716071748_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Duchess"], "points": 5800, "image": "20260716071748_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Ironeye"], "points": 5600, "image": "20260716071748_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day1", "team": ["Executor", "Revenant", "Guardian"], "points": 5400, "image": "20260716071748_1_4.jpg", "excluded": false, "status": "quit", "note": "挂狗鸟人"}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Wylder", "Recluse"], "points": 6200, "image": "20260716071748_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Maris-everdark", "day": "day1", "team": ["Executor", "Revenant", "Ironeye"], "points": 6000, "image": "20260716071748_1_6.jpg", "excluded": false, "status": "quit", "note": "挂狗铁眼"}, {"nightlord": "Gnoster", "day": "day1", "team": ["Executor", "Ironeye", "Raider"], "points": 6250, "image": "20260716071747_1_0.jpg", "excluded": false, "status": "quit", "note": "双排，挂狗无赖"}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Duchess", "Guardian"], "points": 7050, "image": "20260716071747_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Duchess"], "points": 6850, "image": "20260716071747_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster", "day": "day3-victory", "team": ["Executor", "Ironeye", "Revenant"], "points": 6550, "image": "20260716071747_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Duchess", "Revenant"], "points": 6350, "image": "20260716071747_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gladius-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Undertaker"], "points": 6150, "image": "20260716071747_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo-everdark", "day": "day1", "team": ["Executor", "Executor", "Revenant"], "points": 6000, "image": "20260716071747_1_6.jpg", "excluded": false, "status": "quit", "note": "挂狗太刀"}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Duchess", "Revenant"], "points": 6000, "image": "20260716071746_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Undertaker", "Raider"], "points": 5800, "image": "20260716071746_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day1", "team": ["Executor", "Scholar", "Revenant"], "points": 5600, "image": "20260716071746_1_2.jpg", "excluded": false, "status": "quit", "note": "挂狗蜗牛"}, {"nightlord": "Libra-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Revenant"], "points": 6400, "image": "20260716071746_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Duchess", "Raider"], "points": 6200, "image": "20260716071746_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day1", "team": ["Executor", "Wylder", "Ironeye"], "points": 6000, "image": "20260716071746_1_5.jpg", "excluded": false, "status": "quit", "note": "挂狗铁眼"}, {"nightlord": "Gladius-everdark", "day": "day1", "team": ["Executor", "Wylder", "Wylder"], "points": 6000, "image": "20260716071746_1_6.jpg", "excluded": false, "status": "quit", "note": "挂狗追踪者"}, {"nightlord": "Maris", "day": "day1", "team": ["Executor", "Duchess", "Wylder"], "points": 6450, "image": "20260716071745_1_0.jpg", "excluded": false, "status": "quit", "note": "卡比"}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Wylder", "Duchess"], "points": 7250, "image": "20260716071745_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster-everdark", "day": "day3-victory", "team": ["Executor", "Executor", "Executor"], "points": 7050, "image": "20260716071745_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Guardian"], "points": 6850, "image": "20260716071745_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster", "day": "day3-victory", "team": ["Executor", "Revenant", "Scholar"], "points": 6650, "image": "20260716071745_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Duchess", "Recluse"], "points": 6450, "image": "20260716071745_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day3", "team": ["Executor", "Duchess", "Ironeye"], "points": 6250, "image": "20260716071745_1_6.jpg", "excluded": false, "status": "quit", "note": "双排，挂狗女爵"}, {"nightlord": "Harmonia-everdark", "day": "day1", "team": ["Executor", "Wylder", "Revenant"], "points": 6850, "image": "20260716071744_1_0.jpg", "excluded": false, "status": "quit", "note": "卡比"}, {"nightlord": "Adel-everdark", "day": "day1", "team": ["Executor", "Revenant", "Executor"], "points": 7650, "image": "20260716071744_1_1.jpg", "excluded": false, "status": "quit", "note": "两个究极自私比，不想玩了"}, {"nightlord": "Caligo-everdark", "day": "day3-victory", "team": ["Executor", "Raider", "Wylder"], "points": 8450, "image": "20260716071744_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day1", "team": ["Executor"], "points": 8250, "image": "20260716071744_1_3.jpg", "excluded": false, "status": "invalid", "note": "开局炸房"}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Wylder", "Guardian"], "points": 8250, "image": "20260716071744_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Wylder", "Executor"], "points": 7950, "image": "20260716071744_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Undertaker", "Duchess"], "points": 7750, "image": "20260716071744_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Maris", "day": "day3-victory", "team": ["Executor", "Duchess", "Ironeye"], "points": 7550, "image": "20260716071742_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster", "day": "day1", "team": ["Executor", "Revenant", "Ironeye"], "points": 7350, "image": "20260716071742_1_1.jpg", "excluded": false, "status": "quit", "note": "挂狗铁眼"}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Executor", "Undertaker"], "points": 8150, "image": "20260716071742_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Raider", "Ironeye"], "points": 7950, "image": "20260716071742_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Ironeye", "Wylder"], "points": 7650, "image": "20260716071742_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day1", "team": ["Executor", "Ironeye"], "points": 7450, "image": "20260716071742_1_5.jpg", "excluded": false, "status": "invalid", "note": "开局炸房"}, {"nightlord": "Caligo-everdark", "day": "day1", "team": ["Executor", "Recluse", "Undertaker"], "points": 7450, "image": "20260716071742_1_6.jpg", "excluded": false, "status": "quit", "note": "挂狗隐士"}, {"nightlord": "Gladius", "day": "day3-victory", "team": ["Executor", "Recluse", "Ironeye"], "points": 8250, "image": "20260716071742_1_7.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Undertaker", "Duchess"], "points": 7950, "image": "20260716224131_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster-everdark", "day": "day1", "team": ["Executor", "Wylder", "Ironeye"], "points": 7750, "image": "20260716224131_1_4.jpg", "excluded": false, "status": "quit", "note": "挂狗铁眼"}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Executor"], "points": 8550, "image": "20260716224131_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Scholar", "Wylder"], "points": 8250, "image": "20260716224131_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Revenant", "Wylder"], "points": 8050, "image": "20260716224123_2_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Duchess"], "points": 7850, "image": "20260716224123_2_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 7650, "image": "20260716224123_2_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 7450, "image": "20260716224123_2_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day1", "team": ["Executor", "Recluse", "Ironeye"], "points": 7250, "image": "20260716224123_2_4.jpg", "excluded": false, "status": "quit", "note": "挂狗隐士"}, {"nightlord": "Gnoster", "day": "day3-victory", "team": ["Executor", "Wylder", "Scholar"], "points": 8050, "image": "20260716224123_2_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Wylder", "Wylder"], "points": 7850, "image": "20260716224123_2_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Recluse", "Recluse"], "points": 7550, "image": "20260716224123_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster-everdark", "day": "day3-victory", "team": ["Executor", "Executor", "Guardian"], "points": 7350, "image": "20260716224123_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Wylder", "Wylder"], "points": 7050, "image": "20260716224123_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Maris", "day": "day3-victory", "team": ["Executor", "Duchess", "Scholar"], "points": 6850, "image": "20260716224123_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Wylder", "Recluse"], "points": 6650, "image": "20260716224123_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gladius", "day": "day3-victory", "team": ["Executor", "Duchess", "Recluse"], "points": 6500, "image": "20260716224123_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day1", "team": ["Executor", "Ironeye", "Wylder"], "points": 6200, "image": "20260716224123_1_6.jpg", "excluded": false, "status": "quit", "note": "挂狗铁眼"}, {"nightlord": "Gladius-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Duchess"], "points": 7000, "image": "20260716224122_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor-everdark", "day": "day3-victory", "team": ["Executor", "Executor", "Wylder"], "points": 6800, "image": "20260716224122_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Revenant", "Recluse"], "points": 6600, "image": "20260716224122_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gladius", "day": "day3-victory", "team": ["Executor", "Executor", "Executor"], "points": 6400, "image": "20260716224122_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Maris", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 6100, "image": "20260716224122_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gladius", "day": "day3-victory", "team": ["Executor", "Raider", "Executor"], "points": 5900, "image": "20260716224122_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Revenant"], "points": 5700, "image": "20260716224122_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Recluse"], "points": 5400, "image": "20260716224121_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day1", "team": ["Executor", "Revenant", "Wylder"], "points": 5200, "image": "20260716224121_1_1.jpg", "excluded": false, "status": "quit", "note": "挂狗追踪者"}, {"nightlord": "Adel", "day": "day1", "team": ["Executor", "Recluse", "Ironeye"], "points": 6000, "image": "20260716224121_1_2.jpg", "excluded": false, "status": "defeat", "note": "一人拔线，一人摆烂"}, {"nightlord": "Libra-everdark", "day": "day3-victory", "team": ["Executor", "Revenant", "Raider"], "points": 6200, "image": "20260716224121_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day2", "team": ["Executor", "Recluse", "Duchess"], "points": 6000, "image": "20260716224121_1_4.jpg", "excluded": false, "status": "quit", "note": "双排摆烂"}, {"nightlord": "Caligo-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Wylder"], "points": 6500, "image": "20260716224121_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Recluse", "Guardian"], "points": 6300, "image": "20260716224121_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Revenant"], "points": 6100, "image": "20260716224120_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Wylder", "Raider"], "points": 5900, "image": "20260716224120_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster", "day": "day1", "team": ["Executor", "Ironeye", "Duchess"], "points": 5700, "image": "20260716224120_1_2.jpg", "excluded": false, "status": "quit", "note": "挂狗铁眼"}, {"nightlord": "Maris-everdark", "day": "day3-victory", "team": ["Executor", "Revenant", "Raider"], "points": 6500, "image": "20260716224120_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day3", "team": ["Executor", "Wylder", "Undertaker"], "points": 6200, "image": "20260716224120_1_4.jpg", "excluded": false, "status": "disconnected", "note": "掉线"}, {"nightlord": "Fulghor-everdark", "day": "day3-victory", "team": ["Executor", "Revenant", "Ironeye"], "points": 6400, "image": "20260716224120_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Revenant", "Wylder"], "points": 6200, "image": "20260622232200_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day1", "team": ["Executor", "Wylder", "Duchess"], "points": 6000, "image": "20260622232200_1_1.jpg", "excluded": false, "status": "quit", "note": "挂狗追踪者"}, {"nightlord": "Gnoster-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Recluse"], "points": 6500, "image": "20260622232200_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Ironeye", "Wylder"], "points": 6300, "image": "20260622232200_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day1", "team": ["Executor", "Revenant"], "points": 6100, "image": "20260622232200_1_4.jpg", "excluded": false, "status": "quit", "note": "挂狗蜗牛"}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Recluse", "Ironeye"], "points": 6900, "image": "20260622232200_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day3-victory", "team": ["Executor", "Recluse", "Revenant"], "points": 6600, "image": "20260622232200_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day3-victory", "team": ["Executor", "Undertaker", "Duchess"], "points": 6400, "image": "20260622232159_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day3", "team": ["Executor", "Wylder", "Duchess"], "points": 6200, "image": "20260622232159_1_1.jpg", "excluded": false, "status": "defeat", "note": "马拉松失败"}, {"nightlord": "Libra-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Ironeye"], "points": 6800, "image": "20260622232159_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Wylder", "Duchess"], "points": 6500, "image": "20260622232159_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Duchess", "Recluse"], "points": 6300, "image": "20260622232159_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day1", "team": ["Executor", "Raider", "Guardian"], "points": 6100, "image": "20260622232159_1_5.jpg", "excluded": false, "status": "quit", "note": "挂狗无赖"}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Wylder", "Revenant"], "points": 6900, "image": "20260622232159_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo-everdark", "day": "day1", "team": ["Executor", "Raider", "Wylder"], "points": 6700, "image": "20260622232158_1_0.jpg", "excluded": false, "status": "quit", "note": "挂狗追踪者"}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Wylder", "Raider"], "points": 7500, "image": "20260622232158_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day1", "team": ["Executor", "Revenant"], "points": 7300, "image": "20260622232158_1_2.jpg", "excluded": false, "status": "invalid", "note": "开局炸房"}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Ironeye"], "points": 7300, "image": "20260622232158_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day1", "team": ["Executor", "Duchess", "Revenant"], "points": 7100, "image": "20260622232158_1_4.jpg", "excluded": false, "status": "quit", "note": "挂狗女爵"}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Wylder", "Executor"], "points": 7900, "image": "20260622232158_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Wylder", "Duchess"], "points": 7700, "image": "20260622232158_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Revenant", "Scholar"], "points": 7500, "image": "20260622232157_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day1", "team": ["Executor", "Duchess", "Scholar"], "points": 7300, "image": "20260622232157_1_1.jpg", "excluded": false, "status": "quit", "note": "挂狗女爵"}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Raider", "Recluse"], "points": 8100, "image": "20260622232157_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Duchess"], "points": 7900, "image": "20260622232157_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Scholar", "Undertaker"], "points": 7700, "image": "20260622232157_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Wylder", "Wylder"], "points": 7500, "image": "20260622232157_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Undertaker", "Wylder"], "points": 7300, "image": "20260622232157_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 7100, "image": "20260622232156_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Duchess", "Undertaker"], "points": 6900, "image": "20260622232156_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Executor", "Ironeye"], "points": 6700, "image": "20260622232156_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Ironeye", "Revenant"], "points": 6400, "image": "20260622232156_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 6200, "image": "20260622232156_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day1", "team": ["Executor", "Wylder"], "points": 6000, "image": "20260622232156_1_5.jpg", "excluded": false, "status": "disconnected", "note": "掉线炸房"}, {"nightlord": "Caligo-everdark", "day": "day3-victory", "team": ["Executor", "Raider", "Wylder"], "points": 6700, "image": "20260622232156_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Maris-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Recluse"], "points": 6500, "image": "20260622232154_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Ironeye", "Undertaker"], "points": 6300, "image": "20260622232154_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Maris-everdark", "day": "day3-victory", "team": ["Executor", "Executor", "Raider"], "points": 6100, "image": "20260622232154_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Revenant", "Wylder"], "points": 5900, "image": "20260622232154_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day1", "team": ["Executor", "Wylder", "Ironeye"], "points": 5700, "image": "20260622232154_1_4.jpg", "excluded": false, "status": "quit", "note": "挂狗铁眼"}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Ironeye", "Wylder"], "points": 6500, "image": "20260622232154_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 6200, "image": "20260622232154_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day1", "team": ["Executor", "Ironeye"], "points": 6000, "image": "20260622232152_1_0.jpg", "excluded": false, "status": "invalid", "note": "开局炸房"}, {"nightlord": "Adel-everdark", "day": "day1", "team": ["Executor", "Raider", "Executor"], "points": 6000, "image": "20260622232152_1_1.jpg", "excluded": false, "status": "quit", "note": "挂狗太刀"}, {"nightlord": "Libra-everdark", "day": "day1", "team": ["Executor", "Ironeye", "Duchess"], "points": 6000, "image": "20260622232152_1_2.jpg", "excluded": false, "status": "quit", "note": "挂狗女爵"}, {"nightlord": "Fulghor-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 6300, "image": "20260622232152_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 6100, "image": "20260622232152_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor-everdark", "day": "day3-victory", "team": ["Executor", "Raider", "Wylder"], "points": 5900, "image": "20260622232152_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 5700, "image": "20260622232152_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day1", "team": ["Executor", "Wylder", "Scholar"], "points": 5400, "image": "20260622232148_1_0.jpg", "excluded": false, "status": "quit", "note": "挂狗追踪者"}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Duchess", "Undertaker"], "points": 5700, "image": "20260622232148_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day1", "team": ["Executor"], "points": 5500, "image": "20260622232148_1_2.jpg", "excluded": false, "status": "invalid", "note": "开局炸房"}, {"nightlord": "Adel", "day": "day1", "team": ["Executor", "Raider", "Duchess"], "points": 5500, "image": "20260622232148_1_3.jpg", "excluded": false, "status": "invalid", "note": "开局炸房"}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Recluse", "Wylder"], "points": 5500, "image": "20260622232148_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day1", "team": ["Executor", "Duchess", "Revenant"], "points": 5200, "image": "20260622232148_1_5.jpg", "excluded": false, "status": "quit", "note": "挂狗蜗牛"}, {"nightlord": "Gnoster", "day": "day1", "team": ["Executor", "Raider", "Scholar"], "points": 6000, "image": "20260622232148_1_6.jpg", "excluded": false, "status": "quit", "note": "挂狗无赖"}, {"nightlord": "Libra-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Duchess"], "points": 6550, "image": "20260616012011_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day1", "team": ["Executor", "Scholar", "Wylder"], "points": 6250, "image": "20260616012011_1_1.jpg", "excluded": false, "status": "quit", "note": "挂狗学者"}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Revenant"], "points": 7050, "image": "20260616012011_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Maris", "day": "day3-victory", "team": ["Executor", "Wylder", "Executor"], "points": 6850, "image": "20260616012011_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Raider", "Undertaker"], "points": 6650, "image": "20260616012011_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gladius", "day": "day1", "team": ["Executor"], "points": 6450, "image": "20260616012011_1_5.jpg", "excluded": false, "status": "invalid", "note": "开局炸房"}, {"nightlord": "Gladius", "day": "day1", "team": ["Executor"], "points": 6450, "image": "20260616012011_1_6.jpg", "excluded": false, "status": "invalid", "note": "开局炸房"}, {"nightlord": "Libra-everdark", "day": "day1", "team": ["Executor", "Ironeye", "Duchess"], "points": 6450, "image": "20260616012010_1_0.jpg", "excluded": false, "status": "quit", "note": "挂狗女爵"}, {"nightlord": "Harmonia", "day": "day2", "team": ["Executor", "Wylder", "Ironeye"], "points": 7250, "image": "20260616012010_1_1.jpg", "excluded": false, "status": "disconnected", "note": "掉线"}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Wylder", "Raider"], "points": 7600, "image": "20260616012010_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Revenant", "Raider"], "points": 7400, "image": "20260616012010_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Wylder", "Recluse"], "points": 7200, "image": "20260616012010_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 7000, "image": "20260616012010_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 6800, "image": "20260616012010_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster", "day": "day1", "team": ["Executor", "Wylder", "Raider"], "points": 6600, "image": "20260616012009_1_0.jpg", "excluded": false, "status": "quit", "note": "挂狗追踪者"}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Wylder", "Duchess"], "points": 7400, "image": "20260616012009_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 7200, "image": "20260616012009_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Raider", "Ironeye"], "points": 7000, "image": "20260616012009_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Revenant", "Duchess"], "points": 6800, "image": "20260616012009_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 6600, "image": "20260616012009_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Recluse", "Ironeye"], "points": 6400, "image": "20260616012009_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 6200, "image": "20260616012007_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor-everdark", "day": "day1", "team": ["Executor", "Executor", "Scholar"], "points": 6000, "image": "20260616012007_1_1.jpg", "excluded": false, "status": "quit", "note": "挂狗太刀"}, {"nightlord": "Caligo-everdark", "day": "day1", "team": ["Executor", "Wylder", "Revenant"], "points": 6450, "image": "20260616012007_1_2.jpg", "excluded": false, "status": "quit", "note": "挂狗蜗牛"}, {"nightlord": "Harmonia-everdark", "day": "day1", "team": ["Executor", "Revenant", "Duchess"], "points": 7250, "image": "20260616012007_1_3.jpg", "excluded": false, "status": "quit", "note": "挂狗蜗牛"}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Wylder", "Raider"], "points": 8050, "image": "20260616012007_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 7750, "image": "20260616012007_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Revenant"], "points": 7450, "image": "20260616012007_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Duchess"], "points": 7150, "image": "20260616012006_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gladius", "day": "day3-victory", "team": ["Executor", "Executor", "Ironeye"], "points": 6850, "image": "20260616012006_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Duchess"], "points": 6650, "image": "20260616012006_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Undertaker"], "points": 6450, "image": "20260616012006_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Recluse", "Wylder"], "points": 6250, "image": "20260616012006_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 6050, "image": "20260616012006_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Recluse", "Wylder"], "points": 5850, "image": "20260616012006_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Wylder"], "points": 5650, "image": "20260616012005_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Guardian", "Wylder"], "points": 5450, "image": "20260616012005_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Executor", "Executor"], "points": 5250, "image": "20260616012005_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Maris-everdark", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 4950, "image": "20260616012005_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Wylder", "Duchess"], "points": 4750, "image": "20260616012005_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Ironeye", "Duchess"], "points": 4500, "image": "20260616012005_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Ironeye", "Raider"], "points": 4300, "image": "20260616012005_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gladius", "day": "day3-victory", "team": ["Executor", "Executor", "Raider"], "points": 4100, "image": "20260616012003_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Recluse", "Revenant"], "points": 3800, "image": "20260616012003_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Wylder", "Recluse"], "points": 3600, "image": "20260616012003_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day3-victory", "team": ["Executor", "Ironeye", "Duchess"], "points": 3400, "image": "20260616012003_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 3200, "image": "20260616012003_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Ironeye", "Raider"], "points": 3000, "image": "20260616012003_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel", "day": "day1", "team": ["Executor"], "points": 2800, "image": "20260616012003_1_6.jpg", "excluded": false, "status": "invalid", "note": "开局炸房"}, {"nightlord": "Maris", "day": "day3-victory", "team": ["Executor", "Recluse", "Revenant"], "points": 2800, "image": "20260616011955_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day1", "team": ["Executor", "Wylder", "Wylder"], "points": 2600, "image": "20260616011955_1_1.jpg", "excluded": false, "status": "quit", "note": "挂狗追踪者"}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Recluse", "Wylder"], "points": 3000, "image": "20260616011955_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Wylder"], "points": 2800, "image": "20260616011955_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Maris", "day": "day1", "team": ["Executor"], "points": 2600, "image": "20260616011955_1_4.jpg", "excluded": false, "status": "invalid", "note": "开局炸房"}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 2600, "image": "20260616011955_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 2400, "image": "20260616011955_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day1", "team": ["Executor", "Raider", "Recluse"], "points": 2200, "image": "20260616011950_1_0.jpg", "excluded": false, "status": "quit", "note": "挂狗无赖"}, {"nightlord": "Harmonia-everdark", "day": "day1", "team": ["Executor"], "points": 2600, "image": "20260616011950_1_1.jpg", "excluded": false, "status": "invalid", "note": "开局炸房"}, {"nightlord": "Gladius", "day": "day3-victory", "team": ["Executor", "Wylder", "Duchess"], "points": 2600, "image": "20260616011950_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Recluse"], "points": 2400, "image": "20260616011950_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Guardian", "Wylder"], "points": 2200, "image": "20260616011950_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Libra-everdark", "day": "day2", "team": ["Executor", "Undertaker", "Ironeye"], "points": 2000, "image": "20260616011950_1_5.jpg", "excluded": false, "status": "quit", "note": "双排，挂狗修女"}, {"nightlord": "Adel-everdark", "day": "day3-victory", "team": ["Executor", "Wylder", "Ironeye"], "points": 2000, "image": "20260616011950_1_6.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Raider", "Recluse"], "points": 1800, "image": "20260616002517_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Revenant", "Wylder"], "points": 1600, "image": "20260616002517_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day1", "team": ["Executor", "Raider", "Wylder"], "points": 1400, "image": "20260616002517_1_2.jpg", "excluded": false, "status": "quit", "note": "挂狗无赖"}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Ironeye", "Wylder"], "points": 1600, "image": "20260616002517_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gnoster", "day": "day1", "team": ["Executor", "Wylder", "Revenant"], "points": 1400, "image": "20260616002517_1_4.jpg", "excluded": false, "status": "quit", "note": "双人拔线，不想玩了"}, {"nightlord": "Straghess", "day": "day1", "team": ["Executor", "Revenant", "Guardian"], "points": 1600, "image": "20260616002514_1_0.jpg", "excluded": false, "status": "quit", "note": "挂狗蜗牛，挂狗鸟人"}, {"nightlord": "Caligo", "day": "day1", "team": ["Executor", "Ironeye", "Recluse"], "points": 2000, "image": "20260616002514_1_1.jpg", "excluded": false, "status": "quit", "note": "挂狗隐士"}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Ironeye", "Scholar"], "points": 2250, "image": "20260616002514_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Fulghor", "day": "day3-victory", "team": ["Executor", "Wylder", "Duchess"], "points": 2050, "image": "20260616002514_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia-everdark", "day": "day3-victory", "team": ["Executor", "Undertaker", "Duchess"], "points": 1850, "image": "20260616002514_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Maris", "day": "day3-victory", "team": ["Executor", "Raider", "Ironeye"], "points": 1650, "image": "20260616002514_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Straghess", "day": "day3-victory", "team": ["Executor", "Duchess", "Wylder"], "points": 1450, "image": "20260616002507_1_0.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Gladius", "day": "day3-victory", "team": ["Executor", "Revenant", "Duchess"], "points": 1250, "image": "20260616002507_1_1.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Caligo", "day": "day3-victory", "team": ["Executor", "Scholar", "Duchess"], "points": 1050, "image": "20260616002507_1_2.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Undertaker", "Wylder"], "points": 850, "image": "20260616002507_1_3.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Harmonia", "day": "day3-victory", "team": ["Executor", "Guardian", "Recluse"], "points": 600, "image": "20260616002507_1_4.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Heolstor", "day": "day3-victory", "team": ["Executor", "Guardian", "Undertaker"], "points": 400, "image": "20260616002507_1_5.jpg", "excluded": false, "status": "victory", "note": null}, {"nightlord": "Maris", "day": "day3-victory", "team": ["Executor", "Revenant", "Duchess"], "points": 200, "image": "20260616002507_1_6.jpg", "excluded": false, "status": "victory", "note": null}]
+      const translations = {"UI": {"number": "序号", "nightlord": "夜王", "day": "进度", "team": "队伍", "points": "分数", "date": "日期", "image": "截图", "excluded": "排除", "status": "状态", "note": "备注"}, "status": {"victory": "胜利", "defeat": "失败", "quit": "拔线", "disconnected": "掉线", "invalid": "无效"}, "days": {"day0": "未知日", "day1": "初始日", "day2": "中间日", "day3": "最终日", "day3-victory": "最终日"}, "depths": {"D1": "深1", "D2": "深2", "D3": "深3", "D4": "深4", "D5": "深5"}, "nightlords": {"Gladius": "三狼", "Gladius-everdark": "三狼(永夜)", "Adel": "大嘴", "Adel-everdark": "大嘴(永夜)", "Gnoster": "虫子", "Gnoster-everdark": "虫子(永夜)", "Maris": "征兆", "Maris-everdark": "征兆(永夜)", "Libra": "山羊", "Libra-everdark": "山羊(永夜)", "Fulghor": "人马", "Fulghor-everdark": "人马(永夜)", "Caligo": "冰龙", "Caligo-everdark": "冰龙(永夜)", "Harmonia": "七仙女", "Harmonia-everdark": "七仙女(永夜)", "Straghess": "垃圾王", "Heolstor": "布德奇冥"}, "nightfarers": {"Wylder": "追踪者", "Guardian": "守护者", "Ironeye": "铁眼", "Duchess": "女爵", "Raider": "无赖", "Revenant": "复仇者", "Recluse": "隐士", "Executor": "执行者", "Scholar": "学者", "Undertaker": "送葬者"}}
+      const preview = document.getElementById("hover-preview")
+      const previewImage = preview.querySelector("img")
+
+      const HIDE_DATE = expeditions.some((row) => row.date === undefined || row.date === null)
+      const COLUMNS = ["number", "nightlord", "day", "team", "points", "image", "status", "note"]
+      if (!HIDE_DATE) {
+        COLUMNS.unshift("date")
+      }
+
+      function t(section, key, fallback) {
+        if (translations && translations[section] && translations[section][key] !== undefined) {
+          return translations[section][key]
+        }
+        return fallback
+      }
+
+      function displayDay(value) {
+        return t("days", value, value)
+      }
+
+      function displayNightlord(value) {
+        return t("nightlords", value, value)
+      }
+
+      function displayCharacter(value) {
+        return t("nightfarers", value, value)
+      }
+
+      function displayStatus(value) {
+        return t("status", value, value)
+      }
+
+      function displayDepth(value) {
+        return t("depths", value, value)
+      }
+
+      function setStats(visibleRows) {
+        const total = visibleRows.length
+        const victories = visibleRows.filter((row) => row.status === "victory").length
+
+        document.getElementById("total-expeditions").textContent = String(total)
+        document.getElementById("total-victories").textContent = String(victories)
+        document.getElementById("label-total").textContent = "总场次"
+        document.getElementById("label-victories").textContent = "胜利场次"
+      }
+
+      function renderHeader() {
+        const header = document.getElementById("expedition-header")
+        header.innerHTML = ""
+        COLUMNS.forEach((key) => {
+          const th = document.createElement("th")
+          th.textContent = t("UI", key, key)
+          header.appendChild(th)
+        })
+      }
+
+      function showPreview(src, event) {
+        const button = event.target
+        const row = button.closest("tr")
+        previewImage.onload = () => {
+          const buttonRect = button.getBoundingClientRect()
+          const rowRect = row.getBoundingClientRect()
+          previewImage.style.maxWidth = `${rowRect.width}px`
+          preview.style.left = `${rowRect.left}px`
+          preview.style.top = `${(rowRect.height - previewImage.naturalHeight) / 2 + rowRect.top}px`
+        }
+        previewImage.src = src
+        preview.style.display = "block"
+      }
+
+      function hidePreview() {
+        if (preview.style.display !== "none") {
+          preview.style.display = "none"
+          previewImage.src = ""
+        }
+      }
+
+      function renderTable(visibleRows) {
+        const body = document.getElementById("expedition-body")
+        body.innerHTML = ""
+        const statusClassMap = {
+          victory: "victory-row",
+          defeat: "defeat-row",
+          quit: "quit-row",
+          disconnected: "disconnected-row",
+          invalid: "invalid-row",
+        }
+
+        visibleRows.forEach((row, rowIndex) => {
+          const tr = document.createElement("tr")
+          const statusClass = statusClassMap[row.status]
+          if (statusClass) tr.classList.add(statusClass)
+
+          COLUMNS.forEach((column) => {
+            const td = document.createElement("td")
+            const value = row[column]
+
+            if (column === "nightlord") {
+              td.textContent = displayNightlord(String(value))
+              td.className = "nightlord"
+              if (String(value).endsWith("-everdark")) {
+                td.style.color = "var(--nightlord-everdark)"
+              }
+            } else if (column === "day") {
+              td.textContent = displayDay(String(value))
+            } else if (column === "status") {
+              td.textContent = displayStatus(String(value))
+            } else if (column === "team") {
+              td.textContent = Array.isArray(value) ? value.map(displayCharacter).join(", ") : ""
+            } else if (column === "image") {
+              const button = document.createElement("button")
+              button.className = "image-icon btn btn-light btn-sm"
+              button.type = "button"
+              button.textContent = "📷"
+              const src = `data/expeditions-recognized/${value}`
+              button.addEventListener("click", (event) => showPreview(src, event))
+              td.appendChild(button)
+            } else if (column === "date") {
+              td.className = "date"
+              td.style.color = "var(--muted)"
+              td.textContent = value === null || value === undefined ? "" : String(value)
+            } else if (column === "points") {
+              const points = document.createElement("span")
+              points.textContent = value
+              td.appendChild(points)
+
+              const nextRow = visibleRows[rowIndex + 1]
+              if (nextRow && nextRow.points !== -1) {
+                const diff = value - nextRow.points
+                const diffSpan = document.createElement("span")
+                diffSpan.textContent = ` (${diff >= 0 ? "+" : ""}${diff})`
+                diffSpan.className = "points-diff"
+                td.appendChild(diffSpan)
+              }
+            } else {
+              td.textContent = value === null || value === undefined ? "" : String(value)
+            }
+
+            tr.appendChild(td)
+          })
+
+          body.appendChild(tr)
+        })
+
+        document.addEventListener("click", (event) => {
+          if (!(event.target && event.target.className.includes("image-icon"))) {
+            hidePreview()
+          }
+        })
+      }
+
+      function renderPointsChart(rows) {
+        rows = rows.slice().reverse()
+        const pointColorsMap = {
+          victory: "#16a34a",
+          defeat: "#dc2626",
+          quit: "#facc15",
+          disconnected: "#94a3b8",
+          _default: "#adb0b3",
+        }
+        const chart = echarts.init(document.getElementById("points-chart"))
+        const xAxisData = rows.map((_, idx) => String(idx + 1))
+        const pointsData = rows.map((row) => {
+          if (row.points === -1) {
+            return null
+          }
+          return {
+            value: row.points,
+            itemStyle: {
+              color: pointColorsMap[row.status] || pointColorsMap._default,
+            },
+          }
+        })
+        const depthRanks = [
+          { name: "D1", cap: 1000, color: "#f7f5fb" },
+          { name: "D2", cap: 2000, color: "#e8e2f4" },
+          { name: "D3", cap: 4000, color: "#d9ceed" },
+          { name: "D4", cap: 6000, color: "#cabae6" },
+          { name: "D5", cap: 9999, color: "#b39ddb" },
+        ]
+        function getDepthRank(points) {
+          return depthRanks.find((rank) => points < rank.cap) || depthRanks[depthRanks.length - 1]
+        }
+        const depthSeries = Object.fromEntries(
+          depthRanks.map((rank) => [
+            rank.name,
+            {
+              type: "line",
+              // showSymbol: false,
+              silent: true,
+              emphasis: { disabled: true },
+              connectNulls: false,
+              name: displayDepth(rank.name),
+              data: [],
+              itemStyle: { opacity: 0, color: rank.color },
+              lineStyle: { width: 0 },
+              areaStyle: { color: rank.color },
+            },
+          ]),
+        )
+
+        // If expedition n has points that fit in a rank, then expedition n+1 should be in this rank.
+        let currentRank = null
+        for (let i = 0; i < pointsData.length; i++) {
+          const item = pointsData[i]
+          if (item === null) {
+            Object.values(depthSeries).forEach((series) => series.data.push(null))
+            continue
+          }
+          // The first expedition's rank can't be determined, so we have to assume its rank matches its points.
+          if (currentRank === null) {
+            currentRank = getDepthRank(item.value)
+          }
+          const nextRank = getDepthRank(item.value)
+          Object.entries(depthSeries).forEach(([name, series]) => {
+            if (name === currentRank.name || name === nextRank.name) {
+              series.data.push(item.value)
+            } else {
+              series.data.push(null)
+            }
+          })
+          currentRank = nextRank
+        }
+
+        chart.setOption({
+          grid: { left: 10, right: 10, top: 20, bottom: 40, containLabel: true },
+          dataZoom: [{ type: "inside" }],
+          tooltip: {
+            trigger: "axis",
+            axisPointer: { lineStyle: { width: 1, color: "#888888" } },
+            formatter: (items) => {
+              if (!items || !items.length) return ""
+              const index = items[0].dataIndex
+              const row = rows[index]
+              return [
+                `#${index + 1}`,
+                displayNightlord(row.nightlord) || "?",
+                `${displayStatus(row.status)}(${displayDay(row.day)})`,
+                `分数: ${row.points}`,
+                row.date,
+              ]
+                .filter(Boolean)
+                .join("<br>")
+            },
+          },
+          xAxis: {
+            type: "category",
+            data: xAxisData,
+            axisLabel: { show: false },
+            axisTick: { show: false },
+          },
+          yAxis: {
+            type: "value",
+            min: 0,
+            max: 9999,
+          },
+          legend: {
+            bottom: 0,
+            icon: "roundRect",
+            itemStyle: { opacity: 1 },
+          },
+          series: [
+            {
+              type: "line",
+              smooth: false,
+              data: pointsData,
+              connectNulls: false,
+              lineStyle: { width: 2, color: "#7E57C2" },
+            },
+            ...Object.values(depthSeries),
+          ],
+        })
+
+        window.addEventListener("resize", () => chart.resize())
+      }
+
+      function canonicalNightlord(value) {
+        return value.endsWith("-everdark") ? value.slice(0, -9) : value
+      }
+
+      function renderNightlordChart(rows) {
+        const grouped = new Map()
+        rows.forEach((row) => {
+          const key = canonicalNightlord(String(row.nightlord))
+          if (!grouped.has(key)) grouped.set(key, { normal: 0, everdark: 0 })
+          const bucket = grouped.get(key)
+          if (String(row.nightlord).endsWith("-everdark")) {
+            bucket.everdark += 1
+          } else {
+            bucket.normal += 1
+          }
+        })
+
+        const names = Array.from(grouped.entries())
+          .sort((a, b) => {
+            const totalA = a[1].normal + a[1].everdark
+            const totalB = b[1].normal + b[1].everdark
+            return totalB - totalA
+          })
+          .map(([name]) => name)
+        const everdarkCounts = names.map((name) => grouped.get(name).everdark)
+        const normalCounts = names.map((name) => grouped.get(name).normal)
+
+        const chart = echarts.init(document.getElementById("nightlord-chart"))
+        chart.setOption({
+          grid: { left: 10, right: 10, top: 20, bottom: 10, containLabel: true },
+          tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+          xAxis: {
+            type: "category",
+            data: names.map((name) => displayNightlord(name)),
+            axisLabel: { interval: 0, rotate: 25 },
+          },
+          yAxis: { type: "value" },
+          series: [
+            {
+              name: "Everdark",
+              type: "bar",
+              stack: "total",
+              itemStyle: { color: "#5b21b6" },
+              data: everdarkCounts,
+            },
+            {
+              name: "Normal",
+              type: "bar",
+              stack: "total",
+              itemStyle: { color: "#a78bfa" },
+              data: normalCounts,
+            },
+          ],
+        })
+
+        window.addEventListener("resize", () => chart.resize())
+      }
+
+      function renderStatusChart(rows) {
+        const statusColors = {
+          victory: "#16a34a",
+          defeat: "#dc2626",
+          quit: "#facc15",
+          disconnected: "#94a3b8",
+          invalid: "#64748b",
+        }
+        const grouped = new Map()
+        rows.forEach((row) => {
+          const key = String(row.status || "")
+          grouped.set(key, (grouped.get(key) || 0) + 1)
+        })
+
+        const data = Array.from(grouped.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([status, count]) => ({
+            name: displayStatus(status),
+            value: count,
+            itemStyle: { color: statusColors[status] || "#cbd5e1" },
+          }))
+
+        const chart = echarts.init(document.getElementById("status-chart"))
+        chart.setOption({
+          tooltip: {
+            trigger: "item",
+            formatter: ({ name, value, percent }) => `${name}<br>${value} (${percent}%)`,
+          },
+          legend: {
+            bottom: 0,
+            left: "center",
+          },
+          series: [
+            {
+              name: "Status",
+              type: "pie",
+              radius: ["42%", "72%"],
+              center: ["50%", "45%"],
+              avoidLabelOverlap: true,
+              itemStyle: {
+                borderColor: "#ffffff",
+                borderWidth: 2,
+              },
+              label: {
+                formatter: "{b}: {c}",
+              },
+              data,
+            },
+          ],
+        })
+
+        window.addEventListener("resize", () => chart.resize())
+      }
+
+      function renderCharacterChart(rows) {
+        const grouped = new Map()
+        rows.forEach((row) => {
+          if (row.team && row.team.length > 0) {
+            const key = row.team[0]
+            grouped.set(key, (grouped.get(key) || 0) + 1)
+          }
+        })
+
+        const data = Array.from(grouped.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([character, count]) => ({
+            name: displayCharacter(character),
+            value: count,
+          }))
+
+        const chart = echarts.init(document.getElementById("character-chart"))
+        chart.setOption({
+          tooltip: {
+            trigger: "item",
+            formatter: ({ name, value, percent }) => `${name}<br>${value} (${percent}%)`,
+          },
+          series: [
+            {
+              name: "Character",
+              type: "pie",
+              radius: ["42%", "72%"],
+              center: ["50%", "45%"],
+              avoidLabelOverlap: true,
+              itemStyle: {
+                borderColor: "#ffffff",
+                borderWidth: 2,
+              },
+              label: {},
+              data,
+            },
+          ],
+        })
+
+        window.addEventListener("resize", () => chart.resize())
+      }
+
+      function renderTeammatesChart(rows) {
+        const grouped = new Map()
+        rows.forEach((row) => {
+          if (row.team && row.team.length > 2) {
+            for (let i = 1; i < row.team.length; i++) {
+              const key = row.team[i]
+              grouped.set(key, (grouped.get(key) || 0) + 1)
+            }
+          }
+        })
+
+        const data = Array.from(grouped.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([teammate, count]) => ({
+            name: displayCharacter(teammate),
+            value: count,
+          }))
+
+        const chart = echarts.init(document.getElementById("teammates-chart"))
+        chart.setOption({
+          tooltip: {
+            trigger: "item",
+            formatter: ({ name, value, percent }) => `${name}<br>${value} (${percent}%)`,
+          },
+          series: [
+            {
+              name: "Teammates",
+              type: "pie",
+              radius: ["42%", "72%"],
+              center: ["50%", "45%"],
+              avoidLabelOverlap: true,
+              itemStyle: {
+                borderColor: "#ffffff",
+                borderWidth: 2,
+              },
+              label: {},
+              data,
+            },
+          ],
+        })
+
+        window.addEventListener("resize", () => chart.resize())
+      }
+
+      function boot() {
+        renderHeader()
+        const rows = expeditions.map((row, index, arr) => ({
+          ...row,
+          number: arr.length - index,
+        }))
+        setStats(rows)
+        renderTable(rows)
+        renderPointsChart(rows)
+        renderNightlordChart(rows)
+        renderStatusChart(rows)
+        renderCharacterChart(rows)
+        renderTeammatesChart(rows)
+      }
+
+      boot()
+    </script>
+  </body>
+</html>
