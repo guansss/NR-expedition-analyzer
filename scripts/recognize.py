@@ -999,7 +999,7 @@ def main() -> None:
     configure_logging()
 
     root = repo_root()
-    screenshots_dir = root / "data" / "expeditions"
+    screenshots_dir = root / "screenshots"
     crops_dir = root / "web" / "crops"
     debug_dir = root / "debug" if DEBUG_MODE else None
     nightlords_dir = root / "assets" / "expedition-nightlords"

@@ -16,25 +16,25 @@ Build a script that recognizes a game's match history from a series of screensho
 # Project Structure
 
 ```
+screenshots/                # User-provided screenshots of expeditions
 assets/
   expedition-nightlords/    # Nightlord icons
   days/                     # Day icons
   template.html             # HTML template for the webpage
-   results-schema.yaml       # Schema for the results.yaml file
-data/
-  expeditions/              # Screenshots of expeditions
-  expeditions-recognized/   # Cropped images of recognized expeditions
+   results-schema.yaml      # Schema for the results.yaml file
 scripts/
   recognize.py              # Script to recognize expeditions from screenshots
   generate_webpage.py       # Script to generate the webpage with expeditions
-results.yaml              # Intermediate results containing recognized expedition information along with some customizable fields
-index.html                  # Webpage to display expeditions and statistics
+web/
+  crops/                    # Cropped images of expeditions for the webpage
+  index.html                # Generated webpage displaying expeditions and statistics
+results.yaml                # Intermediate results containing recognized expedition information along with some customizable fields
 translations.yaml           # Translations for the webpage
 ```
 
 # Usage
 
-1. Place screenshots of expeditions in the `data/expeditions/` directory.
+1. Place screenshots of expeditions in the `screenshots/` directory.
 2. Run the `recognize.py` script to process the screenshots and extract expedition information into the `results.yaml` file.
 3. Edit the `results.yaml` file to customize the expedition information if needed.
 4. Run the `generate_webpage.py` script to create the `index.html` webpage.
@@ -104,8 +104,8 @@ To recognize the expeditions, the `recognize.py` script will:
 
 1. Set up an image recognition pipeline.
 2. Create a list to store the recognized expeditions as dictionaries with the fields matching the schema in `assets/results-schema.yaml`.
-3. Clean up the `data/expeditions-recognized/` directory.
-4. Load each screenshot from the `data/expeditions/` directory.
+3. Clean up the `web/crops` directory.
+4. Load each screenshot from the `screenshots/` directory.
 5. Starting from 7.8% of the screenshot width and 21.5% of the screenshot height, recognize all 8 Nightlords using the Nightlord icons in the `assets/expedition-nightlords/` directory. If less than 8 Nightlords are recognized, log a warning and continue.
 6. For each Nightlord:
    1. Define a row region as:
@@ -118,7 +118,7 @@ To recognize the expeditions, the `recognize.py` script will:
    4. Check if the expeditions list already contains an expedition with the same date. If it does, log a message indicating that the expedition is a duplicate and skip the current expedition.
    5. Starting from the right of the Nightlord icon, recognize the Day using the Day icons in the `assets/days/` directory. If not recognized, use a value `day0`, log a warning and continue.
    6. Starting from the left of the row region plus 77% of the row width, crop a region of 7% of the row width to recognize the Points using OCR. If not recognized, use a value `-1`.
-   7. Save the cropped row image to the `data/expeditions-recognized/` directory. The filename should be in the format `<screenshot_name>_<row_index>.jpg`. Store the filename in the `image` field of the expedition dictionary.
+   7. Save the cropped row image to the `web/crops/` directory. The filename should be in the format `<screenshot_name>_<row_index>.jpg`. Store the filename in the `image` field of the expedition dictionary.
    8. Store the recognized information as a dictionary in the expeditions list.
    9. Log the recognized information in a single line.
 7. After processing all screenshots, sort the expeditions list by date in descending order.

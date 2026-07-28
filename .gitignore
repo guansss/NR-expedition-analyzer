@@ -1,4 +1,5 @@
-/data/expeditions/*
+/screenshots/*
+!/screenshots/_put_your_screenshots_here_.txt
 /debug
 /web/*
 /results.yaml
