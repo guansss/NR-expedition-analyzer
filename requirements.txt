@@ -1,5 +1,5 @@
-opencv-python
-numpy
-PyYAML
-jsonschema
-paddleocr
+opencv-python==5.0.0.93
+numpy==2.3.5
+PyYAML==6.0.2
+jsonschema==4.26.0
+paddleocr==3.7.0
