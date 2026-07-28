@@ -13,7 +13,7 @@ import yaml
 from jsonschema import validate
 from paddleocr import TextRecognition
 
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
 SCREENSHOT_BASE_WIDTH = 2560
@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--hide-date",
         action="store_true",
-        help="Hide expedition's date in saved images and generate webpage.",
+        help="Hide expedition's date in saved images and generated webpage.",
     )
     return parser.parse_args()
 

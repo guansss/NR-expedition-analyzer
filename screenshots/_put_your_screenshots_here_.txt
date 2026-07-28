@@ -1,0 +1,1 @@
+Supported image formats: PNG, JPG, JPEG, BMP, WEBP.
