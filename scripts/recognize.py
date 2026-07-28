@@ -9,9 +9,9 @@ from typing import Any
 
 import cv2
 import numpy as np
-from paddleocr import TextRecognition
 import yaml
 from jsonschema import validate
+from paddleocr import TextRecognition
 
 DEBUG_MODE = True
 
@@ -86,7 +86,9 @@ def load_templates(template_dir: Path, use_color: bool = False) -> list[dict[str
     return templates
 
 
-def best_template_match(region: Any, templates: list[dict[str, Any]], debug_tag: str | None = None) -> dict[str, Any] | None:
+def best_template_match(
+    region: Any, templates: list[dict[str, Any]], debug_tag: str | None = None
+) -> dict[str, Any] | None:
     best: dict[str, Any] | None = None
     best_score = -1.0
     region_h, region_w = region.shape[:2]
@@ -101,10 +103,12 @@ def best_template_match(region: Any, templates: list[dict[str, Any]], debug_tag:
         method = cv2.TM_CCORR_NORMED if mask is not None else cv2.TM_CCOEFF_NORMED
         response = cv2.matchTemplate(region, tpl, method, mask=mask)
         _, max_val, _, max_loc = cv2.minMaxLoc(response)
-        scores.append({
-            "name": template["name"],
-            "score": float(max_val),
-        })
+        scores.append(
+            {
+                "name": template["name"],
+                "score": float(max_val),
+            }
+        )
         if max_val > best_score:
             best_score = float(max_val)
             best = {
@@ -134,7 +138,7 @@ def is_region_uniform(image: Any, threshold: float = 10.0) -> bool:
 
 
 def base_nightlord_name(name: str) -> str:
-    return name[:-9] if name.endswith("-everdark") else name
+    return name.removesuffix("-everdark")
 
 
 def direct_similarity_score(patch: Any, template: Any, mask: Any | None) -> float:
@@ -316,7 +320,7 @@ def find_nightlords_in_sequence(
 
         matches.append(
             {
-            "name": resolved_name,
+                "name": resolved_name,
                 "score": float(match["score"]),
                 "x": abs_x,
                 "y": abs_y,
@@ -476,7 +480,9 @@ def recognize_points(points_image: Any) -> int:
             continue
 
         for candidate in candidates:
-            candidate_scores[candidate] = candidate_scores.get(candidate, 0.0) + points_candidate_score(candidate, confidence)
+            candidate_scores[candidate] = candidate_scores.get(candidate, 0.0) + points_candidate_score(
+                candidate, confidence
+            )
 
         top_candidate = max(candidates, key=lambda value: points_candidate_score(value, confidence))
         if points_candidate_score(top_candidate, confidence) > points_candidate_score(best_digits, best_confidence):
@@ -512,13 +518,37 @@ def validate_points(expeditions: list[dict[str, Any]]) -> None:
         next_points = int(next_item["points"])
 
         if previous_item.get("day") == "day3-victory" and prev_points <= next_points:
-            logging.warning("Abnormal points around %s (%s). Expected %d > %d", previous_item["date"], previous_item["image"], prev_points, next_points)
+            logging.warning(
+                "Abnormal points around %s (%s). Expected %d > %d",
+                previous_item["date"],
+                previous_item["image"],
+                prev_points,
+                next_points,
+            )
         if previous_item.get("day") != "day3-victory" and prev_points > next_points:
-            logging.warning("Abnormal points around %s (%s). Expected %d <= %d", previous_item["date"], previous_item["image"], prev_points, next_points)
-        if prev_points - next_points  > 350:
-            logging.warning("Abnormal points jump around %s (%s). Expected %d - %d <= 350", previous_item["date"], previous_item["image"], prev_points, next_points)
-        if prev_points - next_points  < -800:
-            logging.warning("Abnormal points drop around %s (%s). Expected %d - %d >= -800", previous_item["date"], previous_item["image"], prev_points, next_points)
+            logging.warning(
+                "Abnormal points around %s (%s). Expected %d <= %d",
+                previous_item["date"],
+                previous_item["image"],
+                prev_points,
+                next_points,
+            )
+        if prev_points - next_points > 350:
+            logging.warning(
+                "Abnormal points jump around %s (%s). Expected %d - %d <= 350",
+                previous_item["date"],
+                previous_item["image"],
+                prev_points,
+                next_points,
+            )
+        if prev_points - next_points < -800:
+            logging.warning(
+                "Abnormal points drop around %s (%s). Expected %d - %d >= -800",
+                previous_item["date"],
+                previous_item["image"],
+                prev_points,
+                next_points,
+            )
 
 
 def load_yaml_list(path: Path) -> list[dict[str, Any]]:
@@ -564,7 +594,11 @@ def merge_custom_fields(
     outdated = []
     for date, item in previous_by_date.items():
         if date not in matched_dates:
-            if item.get("note", "") or item.get("status", "") != get_default_status(item.get("day", "day0")) or item.get("excluded") != False:
+            if (
+                item.get("note", "")
+                or item.get("status", "") != get_default_status(item.get("day", "day0"))
+                or item.get("excluded") != False
+            ):
                 item["outdated"] = True
                 outdated.append(item)
 
@@ -589,7 +623,15 @@ def clean_directory(directory: Path) -> None:
             path.unlink()
 
 
-def detect_day(row_gray: Any, day_templates: list[dict[str, Any]], search_left: int, search_right: int, search_top: int, search_bottom: int, threshold: float = 0.75) -> str:
+def detect_day(
+    row_gray: Any,
+    day_templates: list[dict[str, Any]],
+    search_left: int,
+    search_right: int,
+    search_top: int,
+    search_bottom: int,
+    threshold: float = 0.75,
+) -> str:
     row_h, row_w = row_gray.shape
     left = max(0, min(search_left, row_w - 1))
     right = max(left + 1, min(search_right, row_w))
@@ -600,7 +642,17 @@ def detect_day(row_gray: Any, day_templates: list[dict[str, Any]], search_left: 
     logging.warning("Day icon not recognized, fallback to day0")
     return "day0"
 
-def detect_character(row_color: Any, character_templates: list[dict[str, Any]], search_left: int, search_right: int, search_top: int, search_bottom: int, threshold: float = 0.75, debug_tag: str | None = None) -> dict[str, Any] | None:
+
+def detect_character(
+    row_color: Any,
+    character_templates: list[dict[str, Any]],
+    search_left: int,
+    search_right: int,
+    search_top: int,
+    search_bottom: int,
+    threshold: float = 0.75,
+    debug_tag: str | None = None,
+) -> dict[str, Any] | None:
     row_h, row_w = row_color.shape[:2]
     left = max(0, min(search_left, row_w - 1))
     right = max(left + 1, min(search_right, row_w))
@@ -623,11 +675,19 @@ def scale_template(template: dict[str, Any], scale: float) -> dict[str, Any]:
     if scale == 1.0:
         return template
     scaled_template = template.copy()
-    scaled_template["image"] = cv2.resize(template["image"], (int(template["w"] * scale), int(template["h"] * scale)), interpolation=cv2.INTER_AREA)
+    scaled_template["image"] = cv2.resize(
+        template["image"],
+        (int(template["w"] * scale), int(template["h"] * scale)),
+        interpolation=cv2.INTER_AREA,
+    )
     scaled_template["w"] = scaled_template["image"].shape[1]
     scaled_template["h"] = scaled_template["image"].shape[0]
     if template.get("mask") is not None:
-        scaled_template["mask"] = cv2.resize(template["mask"], (scaled_template["w"], scaled_template["h"]), interpolation=cv2.INTER_NEAREST)
+        scaled_template["mask"] = cv2.resize(
+            template["mask"],
+            (scaled_template["w"], scaled_template["h"]),
+            interpolation=cv2.INTER_NEAREST,
+        )
     return scaled_template
 
 
@@ -644,9 +704,12 @@ def collect_expeditions_for_screenshot(
     if color_image is None:
         logging.warning("Failed to load screenshot: %s", screenshot_path)
         return []
-    
+
     if color_image.shape[0] / color_image.shape[1] != 9 / 16:
-        logging.warning("Screenshot %s is not in 16:9 aspect ratio, results may be inaccurate.", screenshot_path.name)
+        logging.warning(
+            "Screenshot %s is not in 16:9 aspect ratio, results may be inaccurate.",
+            screenshot_path.name,
+        )
 
     if color_image.shape[1] > SCREENSHOT_PROCESS_MAX_WIDTH:
         image_scale = SCREENSHOT_PROCESS_MAX_WIDTH / color_image.shape[1]
@@ -737,21 +800,73 @@ def collect_expeditions_for_screenshot(
         date_left = int(row_w * 0.87)
 
         row_debug = None
+
         def save_debug_image() -> None:
             if debug_dir is not None and row_debug is not None:
                 write_debug_image(debug_dir / f"{row_key}.jpg", row_debug)
+
         if debug_dir is not None:
             row_debug = row_color.copy()
             nightlord_left = nx - row_left
-            cv2.rectangle(row_debug, (int(nightlord_left), 0), (int(nightlord_left + nw), nh), (0, 255, 0), 2)
-            cv2.putText(row_debug, nightlord_match["name"], (int(nightlord_left) + 2, nh - 5), cv2.FONT_HERSHEY_PLAIN, 0.8, (0, 255, 0), 1)
-            cv2.rectangle(row_debug, (day_search_left, day_search_top), (day_search_right, day_search_bottom), (255, 255, 255), 2)
-            cv2.rectangle(row_debug, (char_left, char_top), (char_right, char_bottom), (255, 255, 255), 2)
-            cv2.line(row_debug, (char_interval1, char_top), (char_interval1, char_bottom), (255, 255, 255), 2)
-            cv2.line(row_debug, (char_interval2, char_top), (char_interval2, char_bottom), (255, 255, 255), 2)
-            cv2.rectangle(row_debug, (points_left, points_top), (points_right, points_bottom), (255, 255, 255), 2)
+            cv2.rectangle(
+                row_debug,
+                (int(nightlord_left), 0),
+                (int(nightlord_left + nw), nh),
+                (0, 255, 0),
+                2,
+            )
+            cv2.putText(
+                row_debug,
+                nightlord_match["name"],
+                (int(nightlord_left) + 2, nh - 5),
+                cv2.FONT_HERSHEY_PLAIN,
+                0.8,
+                (0, 255, 0),
+                1,
+            )
+            cv2.rectangle(
+                row_debug,
+                (day_search_left, day_search_top),
+                (day_search_right, day_search_bottom),
+                (255, 255, 255),
+                2,
+            )
+            cv2.rectangle(
+                row_debug,
+                (char_left, char_top),
+                (char_right, char_bottom),
+                (255, 255, 255),
+                2,
+            )
+            cv2.line(
+                row_debug,
+                (char_interval1, char_top),
+                (char_interval1, char_bottom),
+                (255, 255, 255),
+                2,
+            )
+            cv2.line(
+                row_debug,
+                (char_interval2, char_top),
+                (char_interval2, char_bottom),
+                (255, 255, 255),
+                2,
+            )
+            cv2.rectangle(
+                row_debug,
+                (points_left, points_top),
+                (points_right, points_bottom),
+                (255, 255, 255),
+                2,
+            )
             cv2.rectangle(row_debug, (date_left, 0), (row_w, row_h), (255, 255, 255), 2)
-            cv2.line(row_debug, (date_left, int(row_h * 0.5)), (row_w, int(row_h * 0.5)), (255, 255, 255), 2)
+            cv2.line(
+                row_debug,
+                (date_left, int(row_h * 0.5)),
+                (row_w, int(row_h * 0.5)),
+                (255, 255, 255),
+                2,
+            )
 
         date_crop = row_gray[:, date_left:row_w]
         recognized_date = recognize_date(date_crop)
@@ -766,13 +881,38 @@ def collect_expeditions_for_screenshot(
             continue
 
         char_results = [
-            detect_character(row_color, character_templates_primary, char_left, char_interval1, char_top, char_bottom),
-            detect_character(row_color, character_templates_secondary, char_interval1, char_interval2, char_top, char_bottom),
-            detect_character(row_color, character_templates_secondary, char_interval2, char_right, char_top, char_bottom)
+            detect_character(
+                row_color,
+                character_templates_primary,
+                char_left,
+                char_interval1,
+                char_top,
+                char_bottom,
+            ),
+            detect_character(
+                row_color,
+                character_templates_secondary,
+                char_interval1,
+                char_interval2,
+                char_top,
+                char_bottom,
+            ),
+            detect_character(
+                row_color,
+                character_templates_secondary,
+                char_interval2,
+                char_right,
+                char_top,
+                char_bottom,
+            ),
         ]
-        characters = [result['name'] for result in char_results if result is not None]
+        characters = [result["name"] for result in char_results if result is not None]
         if not characters:
-            logging.warning("No characters recognized at row %s in %s", row_idx, screenshot_path.name)
+            logging.warning(
+                "No characters recognized at row %s in %s",
+                row_idx,
+                screenshot_path.name,
+            )
         if row_debug is not None:
             for idx, result in enumerate(char_results):
                 if result is not None:
@@ -780,10 +920,31 @@ def collect_expeditions_for_screenshot(
                     char_y = int(result["y"])
                     char_w = int(result["w"])
                     char_h = int(result["h"])
-                    cv2.rectangle(row_debug, (char_x, char_y), (char_x + char_w, char_y + char_h), (0, 255, 0), 2)
-                    cv2.putText(row_debug, result["name"], (char_x + 2, char_y + char_h - 5), cv2.FONT_HERSHEY_PLAIN, 0.8, (0, 255, 0), 1)
+                    cv2.rectangle(
+                        row_debug,
+                        (char_x, char_y),
+                        (char_x + char_w, char_y + char_h),
+                        (0, 255, 0),
+                        2,
+                    )
+                    cv2.putText(
+                        row_debug,
+                        result["name"],
+                        (char_x + 2, char_y + char_h - 5),
+                        cv2.FONT_HERSHEY_PLAIN,
+                        0.8,
+                        (0, 255, 0),
+                        1,
+                    )
 
-        day_value = detect_day(row_gray, day_templates, day_search_left, day_search_right, day_search_top, day_search_bottom)
+        day_value = detect_day(
+            row_gray,
+            day_templates,
+            day_search_left,
+            day_search_right,
+            day_search_top,
+            day_search_bottom,
+        )
 
         points_crop = row_gray[points_top:points_bottom, points_left:points_right]
         points_value, points_preprocessed = recognize_points(points_crop)
@@ -862,16 +1023,19 @@ def main() -> None:
         raise RuntimeError("No character templates found.")
 
     screenshots = [
-        path
-        for path in sorted(screenshots_dir.iterdir())
-        if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES
+        path for path in sorted(screenshots_dir.iterdir()) if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES
     ][:num_screenshots]
 
     all_expeditions: list[dict[str, Any]] = []
     date_cache: set[str] = set()
 
     for idx, screenshot in enumerate(screenshots, start=1):
-        logging.info("============ (%d/%d) %s ============", idx, len(screenshots), screenshot.name)
+        logging.info(
+            "============ (%d/%d) %s ============",
+            idx,
+            len(screenshots),
+            screenshot.name,
+        )
         all_expeditions.extend(
             collect_expeditions_for_screenshot(
                 screenshot,
@@ -902,9 +1066,13 @@ def main() -> None:
 
     len_outdated_expeditions = sum(1 for item in all_expeditions if item.get("outdated", False))
     if len_outdated_expeditions > 0:
-      logging.info("Recognition complete. Total expeditions: %s (+%s outdated)", len(all_expeditions) - len_outdated_expeditions, len_outdated_expeditions)
+        logging.info(
+            "Recognition complete. Total expeditions: %s (+%s outdated)",
+            len(all_expeditions) - len_outdated_expeditions,
+            len_outdated_expeditions,
+        )
     else:
-      logging.info("Recognition complete. Total expeditions: %s", len(all_expeditions))
+        logging.info("Recognition complete. Total expeditions: %s", len(all_expeditions))
 
 
 if __name__ == "__main__":
