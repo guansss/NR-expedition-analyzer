@@ -54,6 +54,9 @@
         border: 1px solid #e2e8f0;
         border-radius: 16px;
         padding: 16px;
+      }
+
+      .table-panel {
         overflow-x: auto;
       }
 
@@ -207,7 +210,7 @@
 
     <div id="hover-preview"><img src="" alt="preview" /></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js"></script>
     <script>
       const expeditions = __EXPEDITIONS_JSON__
       const translations = __TRANSLATIONS_JSON__
@@ -335,16 +338,24 @@
               td.textContent = value === null || value === undefined ? "" : String(value)
             } else if (column === "points") {
               const points = document.createElement("span")
-              points.textContent = value
+              if (value === -1) {
+                points.textContent = "-"
+              } else {
+                points.textContent = value
+              }
               td.appendChild(points)
 
-              const nextRow = visibleRows[rowIndex + 1]
-              if (nextRow && nextRow.points !== -1) {
-                const diff = value - nextRow.points
-                const diffSpan = document.createElement("span")
-                diffSpan.textContent = ` (${diff >= 0 ? "+" : ""}${diff})`
-                diffSpan.className = "points-diff"
-                td.appendChild(diffSpan)
+              if (value && value !== -1) {
+                const nextValidRow = visibleRows.find(
+                  (row, idx) => idx > rowIndex && row.points !== -1,
+                )
+                if (nextValidRow) {
+                  const diff = value - nextValidRow.points
+                  const diffSpan = document.createElement("span")
+                  diffSpan.textContent = ` (${diff >= 0 ? "+" : ""}${diff})`
+                  diffSpan.className = "points-diff"
+                  td.appendChild(diffSpan)
+                }
               }
             } else {
               td.textContent = value === null || value === undefined ? "" : String(value)
@@ -374,17 +385,6 @@
         }
         const chart = echarts.init(document.getElementById("points-chart"))
         const xAxisData = rows.map((_, idx) => String(idx + 1))
-        const pointsData = rows.map((row) => {
-          if (row.points === -1) {
-            return null
-          }
-          return {
-            value: row.points,
-            itemStyle: {
-              color: pointColorsMap[row.status] || pointColorsMap._default,
-            },
-          }
-        })
         const depthRanks = [
           { name: "D1", cap: 1000, color: "#f7f5fb" },
           { name: "D2", cap: 2000, color: "#e8e2f4" },
@@ -400,11 +400,10 @@
             rank.name,
             {
               type: "line",
-              // showSymbol: false,
               silent: true,
               emphasis: { disabled: true },
               connectNulls: false,
-              name: displayDepth(rank.name),
+              name: rank.name,
               data: [],
               itemStyle: { opacity: 0, color: rank.color },
               lineStyle: { width: 0 },
@@ -415,26 +414,25 @@
 
         // If expedition n has points that fit in a rank, then expedition n+1 should be in this rank.
         let currentRank = null
-        for (let i = 0; i < pointsData.length; i++) {
-          const item = pointsData[i]
-          if (item === null) {
+        rows.forEach((row, index) => {
+          if (row.points === -1) {
             Object.values(depthSeries).forEach((series) => series.data.push(null))
-            continue
+            return
           }
           // The first expedition's rank can't be determined, so we have to assume its rank matches its points.
           if (currentRank === null) {
-            currentRank = getDepthRank(item.value)
+            currentRank = getDepthRank(row.points)
           }
-          const nextRank = getDepthRank(item.value)
+          const nextRank = getDepthRank(row.points)
           Object.entries(depthSeries).forEach(([name, series]) => {
             if (name === currentRank.name || name === nextRank.name) {
-              series.data.push(item.value)
+              series.data.push(row.points)
             } else {
               series.data.push(null)
             }
           })
           currentRank = nextRank
-        }
+        })
 
         chart.setOption({
           grid: { left: 10, right: 10, top: 20, bottom: 40, containLabel: true },
@@ -450,7 +448,7 @@
                 `#${index + 1}`,
                 displayNightlord(row.nightlord) || "?",
                 `${displayStatus(row.status)}(${displayDay(row.day)})`,
-                `分数: ${row.points}`,
+                `分数: ${row.points === -1 ? "-" : row.points}`,
                 row.date,
               ]
                 .filter(Boolean)
@@ -470,18 +468,80 @@
           },
           legend: {
             bottom: 0,
-            icon: "roundRect",
+            itemGap: 12,
             itemStyle: { opacity: 1 },
+            data: [
+              ...Object.values(depthSeries).map((series) => ({
+                name: series.name,
+                icon: "roundRect",
+              })),
+              {
+                name: "note",
+                itemStyle: { color: "#ccc" },
+                icon: "path://M464 256a208 208 0 1 0 -416 0 208 208 0 1 0 416 0zM0 256a256 256 0 1 1 512 0 256 256 0 1 1 -512 0zm256-80c-17.7 0-32 14.3-32 32 0 13.3-10.7 24-24 24s-24-10.7-24-24c0-44.2 35.8-80 80-80s80 35.8 80 80c0 47.2-36 67.2-56 74.5l0 3.8c0 13.3-10.7 24-24 24s-24-10.7-24-24l0-8.1c0-20.5 14.8-35.2 30.1-40.2 6.4-2.1 13.2-5.5 18.2-10.3 4.3-4.2 7.7-10 7.7-19.6 0-17.7-14.3-32-32-32zM224 368a32 32 0 1 1 64 0 32 32 0 1 1 -64 0z",
+              },
+            ],
+            formatter: (name) => name && (name === "note" ? null : displayDepth(name)),
+            tooltip: {
+              show: true,
+              confine: true,
+              formatter: (params) => {
+                if (params.name === "note") {
+                  const text = document.createElement("div")
+                  text.style.width = Math.min(400, chart.getWidth() * 0.8) + "px"
+                  text.style.whiteSpace = "normal"
+                  text.innerHTML =
+                    "深度显示仅供参考。每一局的深度不会显示在对局列表里，无法用图像识别，所以实际上是通过分数来推测的，每一局的深度都由前一局的分数来决定，比如前一局的分数是1500，那么就认为后一局的深度是深2。这种方法大部分时候都足够准确，只是无法反映某些特殊情况，比如手动降深度、匹配到跨深度的局、截图时缺失了一部分对局等等。"
+                  return text.outerHTML
+                }
+                return []
+              },
+            },
           },
           series: [
             {
               type: "line",
               smooth: false,
-              data: pointsData,
+              cursor: "default",
+              data: rows.map((row) => {
+                if (row.points === -1) {
+                  return null
+                }
+                return {
+                  value: row.points,
+                  itemStyle: {
+                    color: pointColorsMap[row.status] || pointColorsMap._default,
+                  },
+                }
+              }),
               connectNulls: false,
               lineStyle: { width: 2, color: "#7E57C2" },
             },
+            {
+              // Put all the points with -1 value on the bottom to make them separate from the main line chart.
+              type: "line",
+              smooth: false,
+              cursor: "default",
+              data: rows.map((row) => {
+                if (row.points !== -1) {
+                  return null
+                }
+                return {
+                  value: 0,
+                  itemStyle: {
+                    color: pointColorsMap[row.status] || pointColorsMap._default,
+                  },
+                }
+              }),
+              connectNulls: false,
+              lineStyle: { width: 0 },
+            },
             ...Object.values(depthSeries),
+            {
+              type: "custom",
+              name: "note",
+              data: [],
+            },
           ],
         })
 
@@ -515,7 +575,9 @@
         const everdarkCounts = names.map((name) => grouped.get(name).everdark)
         const normalCounts = names.map((name) => grouped.get(name).normal)
 
-        const chart = echarts.init(document.getElementById("nightlord-chart"))
+        const chart = echarts.init(document.getElementById("nightlord-chart"), null, {
+          renderer: "svg",
+        })
         chart.setOption({
           grid: { left: 10, right: 10, top: 20, bottom: 10, containLabel: true },
           tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
@@ -527,18 +589,22 @@
           yAxis: { type: "value" },
           series: [
             {
-              name: "Everdark",
-              type: "bar",
-              stack: "total",
-              itemStyle: { color: "#5b21b6" },
-              data: everdarkCounts,
-            },
-            {
               name: "Normal",
               type: "bar",
               stack: "total",
+              stackOrder: "seriesDesc",
+              cursor: "default",
               itemStyle: { color: "#a78bfa" },
               data: normalCounts,
+            },
+            {
+              name: "Everdark",
+              type: "bar",
+              stack: "total",
+              stackOrder: "seriesDesc",
+              cursor: "default",
+              itemStyle: { color: "#5b21b6" },
+              data: everdarkCounts,
             },
           ],
         })
@@ -568,7 +634,9 @@
             itemStyle: { color: statusColors[status] || "#cbd5e1" },
           }))
 
-        const chart = echarts.init(document.getElementById("status-chart"))
+        const chart = echarts.init(document.getElementById("status-chart"), null, {
+          renderer: "svg",
+        })
         chart.setOption({
           tooltip: {
             trigger: "item",
@@ -576,7 +644,6 @@
           },
           legend: {
             bottom: 0,
-            left: "center",
           },
           series: [
             {
@@ -584,6 +651,7 @@
               type: "pie",
               radius: ["42%", "72%"],
               center: ["50%", "45%"],
+              cursor: "default",
               avoidLabelOverlap: true,
               itemStyle: {
                 borderColor: "#ffffff",
@@ -616,7 +684,9 @@
             value: count,
           }))
 
-        const chart = echarts.init(document.getElementById("character-chart"))
+        const chart = echarts.init(document.getElementById("character-chart"), null, {
+          renderer: "svg",
+        })
         chart.setOption({
           tooltip: {
             trigger: "item",
@@ -628,6 +698,7 @@
               type: "pie",
               radius: ["42%", "72%"],
               center: ["50%", "45%"],
+              cursor: "default",
               avoidLabelOverlap: true,
               itemStyle: {
                 borderColor: "#ffffff",
@@ -660,7 +731,9 @@
             value: count,
           }))
 
-        const chart = echarts.init(document.getElementById("teammates-chart"))
+        const chart = echarts.init(document.getElementById("teammates-chart"), null, {
+          renderer: "svg",
+        })
         chart.setOption({
           tooltip: {
             trigger: "item",
@@ -672,6 +745,7 @@
               type: "pie",
               radius: ["42%", "72%"],
               center: ["50%", "45%"],
+              cursor: "default",
               avoidLabelOverlap: true,
               itemStyle: {
                 borderColor: "#ffffff",
