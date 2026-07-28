@@ -224,7 +224,7 @@
     <script>
       const expeditions = __EXPEDITIONS_JSON__
       const translations = __TRANSLATIONS_JSON__
-      const generatedAt = "__GENERATED_AT__"
+      const generatedAt = __GENERATED_AT__
       const preview = document.getElementById("hover-preview")
       const previewImage = preview.querySelector("img")
 
@@ -266,7 +266,7 @@
         document.getElementById("page-title").textContent = t("UI", "page_title")
         document.getElementById("generation-info-start").textContent = t("UI", "generated_at").replace(
           "__TIME__",
-          generatedAt,
+          new Date(generatedAt).toLocaleString(),
         )
         document.getElementById("label-total").textContent = t("UI", "total")
         document.getElementById("label-victories").textContent = t("UI", "victories")

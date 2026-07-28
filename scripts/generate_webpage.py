@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import datetime as dt
 import json
+import time
 from pathlib import Path
 from typing import Any
 
 import yaml
-
 
 PLACEHOLDER_EXPEDITIONS = "__EXPEDITIONS_JSON__"
 PLACEHOLDER_TRANSLATIONS = "__TRANSLATIONS_JSON__"
@@ -15,6 +14,12 @@ PLACEHOLDER_GENERATED_AT = "__GENERATED_AT__"
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def json_literal(value: Any) -> str:
+    serialized = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    serialized = serialized.replace("<", "\\u003c").replace(">", "\\u003e")
+    return serialized
 
 
 def read_yaml(path: Path) -> Any:
@@ -59,9 +64,9 @@ def main() -> None:
 
     template = template_path.read_text(encoding="utf-8")
     html = (
-        template.replace(PLACEHOLDER_EXPEDITIONS, json.dumps(expeditions, ensure_ascii=False))
-        .replace(PLACEHOLDER_TRANSLATIONS, json.dumps(translations, ensure_ascii=False))
-        .replace(PLACEHOLDER_GENERATED_AT, dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        template.replace(PLACEHOLDER_EXPEDITIONS, json_literal(expeditions))
+        .replace(PLACEHOLDER_TRANSLATIONS, json_literal(translations))
+        .replace(PLACEHOLDER_GENERATED_AT, str(int(time.time() * 1000)))
     )
 
     if not output_path.parent.exists():
