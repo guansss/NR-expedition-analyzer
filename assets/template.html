@@ -4,10 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NR Expedition Analyzer</title>
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
     <style>
       :root {
         --bg-a: #edf8ff;
@@ -30,6 +27,10 @@
 
       .page-wrap {
         max-width: 1360px;
+      }
+
+      .generation-info {
+        font-size: 0.8em;
       }
 
       .stat-card {
@@ -136,21 +137,30 @@
     <div class="container-fluid page-wrap py-4">
       <div class="d-flex justify-content-between align-items-end mb-4">
         <div>
-          <h1 class="h3 mb-1">Expedition Report</h1>
-          <div class="muted">Generated at __GENERATED_AT__</div>
+          <h1 class="h3 mb-2" id="page-title"></h1>
+          <div class="muted generation-info">
+            <span id="generation-info-start"></span>
+            <a
+              class="text-decoration-none"
+              href="https://github.com/guansss/NR-expedition-analyzer"
+              target="_blank"
+              rel="noopener noreferrer"
+              >NR-expedition-analyzer</a
+            >
+          </div>
         </div>
       </div>
 
       <div class="row g-3 mb-4">
         <div class="col-12 col-sm-6 col-md-3">
           <div class="stat-card">
-            <div class="muted" id="label-total">Total</div>
+            <div class="muted" id="label-total"></div>
             <div class="stat-value" id="total-expeditions">0</div>
           </div>
         </div>
         <div class="col-12 col-sm-6 col-md-3">
           <div class="stat-card">
-            <div class="muted" id="label-victories">Victories</div>
+            <div class="muted" id="label-victories"></div>
             <div class="stat-value" id="total-victories">0</div>
           </div>
         </div>
@@ -159,7 +169,7 @@
       <div class="row mb-4">
         <div class="col-12">
           <div class="chart-panel">
-            <h2 class="h5 mb-3">Points Trend</h2>
+            <h2 class="h5 mb-3" id="points-chart-title"></h2>
             <div class="chart" id="points-chart"></div>
           </div>
         </div>
@@ -168,13 +178,13 @@
       <div class="row g-3 mb-4">
         <div class="col-12 col-md-6">
           <div class="chart-panel">
-            <h2 class="h5 mb-3">Status Distribution</h2>
+            <h2 class="h5 mb-3" id="status-chart-title"></h2>
             <div class="chart" id="status-chart"></div>
           </div>
         </div>
         <div class="col-12 col-md-6">
           <div class="chart-panel">
-            <h2 class="h5 mb-3">Nightlord Distribution</h2>
+            <h2 class="h5 mb-3" id="nightlord-chart-title"></h2>
             <div class="chart" id="nightlord-chart"></div>
           </div>
         </div>
@@ -183,20 +193,20 @@
       <div class="row g-3 mb-4">
         <div class="col-12 col-md-6">
           <div class="chart-panel">
-            <h2 class="h5 mb-3">Played As</h2>
+            <h2 class="h5 mb-3" id="character-chart-title"></h2>
             <div class="chart" id="character-chart"></div>
           </div>
         </div>
         <div class="col-12 col-md-6">
           <div class="chart-panel">
-            <h2 class="h5 mb-3">Teammates</h2>
+            <h2 class="h5 mb-3" id="teammates-chart-title"></h2>
             <div class="chart" id="teammates-chart"></div>
           </div>
         </div>
       </div>
 
       <div class="table-panel">
-        <h2 class="h5 mb-3">Expeditions</h2>
+        <h2 class="h5 mb-3" id="expeditions-title"></h2>
         <div class="table-responsive">
           <table class="table table-hover align-middle" id="expedition-table">
             <thead class="table-light">
@@ -214,6 +224,7 @@
     <script>
       const expeditions = __EXPEDITIONS_JSON__
       const translations = __TRANSLATIONS_JSON__
+      const generatedAt = "__GENERATED_AT__"
       const preview = document.getElementById("hover-preview")
       const previewImage = preview.querySelector("img")
 
@@ -250,14 +261,29 @@
         return t("depths", value, value)
       }
 
+      function setUiText() {
+        document.title = t("UI", "page_title")
+        document.getElementById("page-title").textContent = t("UI", "page_title")
+        document.getElementById("generation-info-start").textContent = t("UI", "generated_at").replace(
+          "__TIME__",
+          generatedAt,
+        )
+        document.getElementById("label-total").textContent = t("UI", "total")
+        document.getElementById("label-victories").textContent = t("UI", "victories")
+        document.getElementById("points-chart-title").textContent = t("UI", "points_trend")
+        document.getElementById("status-chart-title").textContent = t("UI", "status_distribution")
+        document.getElementById("nightlord-chart-title").textContent = t("UI", "nightlord_distribution")
+        document.getElementById("character-chart-title").textContent = t("UI", "played_as")
+        document.getElementById("teammates-chart-title").textContent = t("UI", "teammates")
+        document.getElementById("expeditions-title").textContent = t("UI", "expeditions")
+      }
+
       function setStats(visibleRows) {
         const total = visibleRows.length
         const victories = visibleRows.filter((row) => row.status === "victory").length
 
         document.getElementById("total-expeditions").textContent = String(total)
         document.getElementById("total-victories").textContent = String(victories)
-        document.getElementById("label-total").textContent = "总场次"
-        document.getElementById("label-victories").textContent = "胜利场次"
       }
 
       function renderHeader() {
@@ -346,9 +372,7 @@
               td.appendChild(points)
 
               if (value && value !== -1) {
-                const nextValidRow = visibleRows.find(
-                  (row, idx) => idx > rowIndex && row.points !== -1,
-                )
+                const nextValidRow = visibleRows.find((row, idx) => idx > rowIndex && row.points !== -1)
                 if (nextValidRow) {
                   const diff = value - nextValidRow.points
                   const diffSpan = document.createElement("span")
@@ -385,6 +409,7 @@
         }
         const chart = echarts.init(document.getElementById("points-chart"))
         const xAxisData = rows.map((_, idx) => String(idx + 1))
+        const pointsLabel = t("UI", "points_label")
         const depthRanks = [
           { name: "D1", cap: 1000, color: "#f7f5fb" },
           { name: "D2", cap: 2000, color: "#e8e2f4" },
@@ -448,7 +473,7 @@
                 `#${index + 1}`,
                 displayNightlord(row.nightlord) || "?",
                 `${displayStatus(row.status)}(${displayDay(row.day)})`,
-                `分数: ${row.points === -1 ? "-" : row.points}`,
+                `${pointsLabel}: ${row.points === -1 ? "-" : row.points}`,
                 row.date,
               ]
                 .filter(Boolean)
@@ -490,8 +515,11 @@
                   const text = document.createElement("div")
                   text.style.width = Math.min(400, chart.getWidth() * 0.8) + "px"
                   text.style.whiteSpace = "normal"
-                  text.innerHTML =
-                    "深度显示仅供参考。每一局的深度不会显示在对局列表里，无法用图像识别，所以实际上是通过分数来推测的，每一局的深度都由前一局的分数来决定，比如前一局的分数是1500，那么就认为后一局的深度是深2。这种方法大部分时候都足够准确，只是无法反映某些特殊情况，比如手动降深度、匹配到跨深度的局、截图时缺失了一部分对局等等。"
+                  text.innerHTML = t(
+                    "UI",
+                    "depth_note",
+                    "Depth display is for reference only. The depth of each match is not shown in the list, so it is inferred from the score. Each match's depth is determined by the score of the previous match, for example, if the previous match scored 1500, the next match is considered depth 2. This method is mostly accurate, but it cannot reflect special cases such as manually lowering the depth, matching across depths, or screenshots missing part of a match.",
+                  )
                   return text.outerHTML
                 }
                 return []
@@ -589,7 +617,7 @@
           yAxis: { type: "value" },
           series: [
             {
-              name: "Normal",
+              name: t("UI", "nightlord_normal"),
               type: "bar",
               stack: "total",
               stackOrder: "seriesDesc",
@@ -598,7 +626,7 @@
               data: normalCounts,
             },
             {
-              name: "Everdark",
+              name: t("UI", "nightlord_everdark"),
               type: "bar",
               stack: "total",
               stackOrder: "seriesDesc",
@@ -761,6 +789,7 @@
       }
 
       function boot() {
+        setUiText()
         renderHeader()
         const rows = expeditions.map((row, index, arr) => ({
           ...row,

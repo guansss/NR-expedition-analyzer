@@ -9,6 +9,20 @@ UI:
   excluded: 排除
   status: 状态
   note: 备注
+  page_title: 黑夜君临对局统计
+  generated_at: 生成于__TIME__，使用
+  total: 总场次
+  victories: 胜利场次
+  points_trend: 分数趋势
+  status_distribution: 对局状态
+  nightlord_distribution: 夜王
+  nightlord_normal: 普通
+  nightlord_everdark: 永夜
+  played_as: 我的角色
+  teammates: 队友
+  expeditions: 对局记录
+  points_label: 分数
+  depth_note: 深度显示仅供参考。每一局的深度不会显示在对局列表里，无法用图像识别，所以实际上是通过分数来推测的，每一局的深度都由前一局的分数来决定，比如前一局的分数是1500，那么就认为后一局的深度是深2。这种方法大部分时候都足够准确，只是无法反映某些特殊情况，比如手动降深度、匹配到跨深度的局、截图时缺失了一部分对局等等。
 
 status:
   victory: 胜利
