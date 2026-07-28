@@ -954,11 +954,11 @@ def collect_expeditions_for_screenshot(
         cv2.imwrite(str(crops_dir / image_name), row_save)
 
         expedition = {
+            "date": recognized_date,
             "nightlord": str(nightlord_match["name"]),
             "day": day_value,
             "team": characters,
             "points": points_value,
-            "date": recognized_date,
             "image": image_name,
             "excluded": False,
             "status": "victory" if day_value == "day3-victory" else "defeat",

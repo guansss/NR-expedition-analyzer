@@ -24,7 +24,9 @@ pip install -r requirements.txt
 ## Quick Start
 
 1. Put your expedition history screenshots into `screenshots/`. Example screenshot:
+
    ![Example Screenshot](guide/example.jpg)
+
 2. Run recognition:
 
    ```bash
@@ -67,26 +69,26 @@ options:
 The `results.yaml` file contains a list of recognized expeditions. For example:
 
 ```yaml
-- nightlord: Libra-everdark
+- date: 2026/06/21 17:18:44
+  nightlord: Libra-everdark
   day: day3-victory
   team:
     - Executor
     - Undertaker
     - Duchess
   points: 6400
-  date: 2026/06/21 17:18:44
   image: example_0.jpg
   excluded: false
   status: victory
   note:
-- nightlord: Libra-everdark
+- date: 2026/06/21 00:30:44
+  nightlord: Libra-everdark
   day: day3
   team:
     - Executor
     - Wylder
     - Duchess
   points: 6200
-  date: 2026/06/21 00:30:44
   image: example_1.jpg
   excluded: false
   status: defeat
